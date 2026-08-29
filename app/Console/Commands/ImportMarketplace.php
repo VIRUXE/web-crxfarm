@@ -2,65 +2,134 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\ListingType;
+use App\Models\Chassis;
 use App\Models\Listing;
 use App\Models\ListingImage;
+use App\Support\ImageTrimmer;
+use App\Support\ListingClassifier;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
-use PDO;
+use Throwable;
 
 class ImportMarketplace extends Command
 {
-    protected $signature = 'import:marketplace {--path= : Path to the scraped SQLite file}';
+    protected $signature = 'import:marketplace
+        {--path= : Path to listings.jsonl or a scrape SQLite file}
+        {--images= : Directory of image files named {marketplace-id}.jpg}
+        {--honda-only : Skip listings the classifier does not consider Honda-related}
+        {--force : Re-extract photos even if the listing already has images}';
 
-    protected $description = 'Import scraped Facebook Marketplace listings (SQLite staging file) into the live MySQL catalog';
+    protected $description = 'Import scraped Marketplace listings into MariaDB, classifying type/category/chassis and converting image blobs to public files';
 
     public function handle(): int
     {
-        $path = $this->option('path')
-            ?: '/tmp/claude-0/-root-crxfarm/a002b531-3e9a-4ed4-be25-1eaf6c4e73c2/scratchpad/crxfarm_listings.sqlite';
+        $path = $this->option('path');
 
-        if (! file_exists($path)) {
-            $this->warn("Scrape file not found at {$path} — nothing to import yet.");
+        if (! is_string($path) || $path === '') {
+            $this->error('Pass --path to a listings.jsonl file or a scrape SQLite database.');
 
-            return self::SUCCESS;
+            return self::FAILURE;
         }
 
-        $pdo = new PDO('sqlite:'.$path);
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        if (! is_file($path)) {
+            $this->error("Scrape file not found at {$path}.");
 
-        $listings = $pdo->query('SELECT * FROM listings')->fetchAll(PDO::FETCH_ASSOC);
-        $this->info('Found '.count($listings).' scraped listings.');
+            return self::FAILURE;
+        }
 
+        $imagesDir = $this->option('images');
+        $imagesDir = is_string($imagesDir) && $imagesDir !== ''
+            ? $imagesDir
+            : dirname($path).DIRECTORY_SEPARATOR.'crxfarm_images';
+
+        try {
+            $rows = $this->isSqlite($path)
+                ? $this->listingsFromSqlite($path)
+                : $this->listingsFromJsonl($path);
+        } catch (Throwable $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+
+        $this->info('Found '.count($rows).' scraped listings.');
+
+        $hondaOnly = (bool) $this->option('honda-only');
         $imported = 0;
-        foreach ($listings as $row) {
-            $listing = Listing::updateOrCreate(
-                ['source_marketplace_id' => $row['id']],
-                [
-                    'type' => 'part',
-                    'title' => $row['title'] ?: 'Untitled listing',
-                    'price' => $row['price'],
-                    'description' => $row['description'],
-                    'location' => $row['location'],
-                    'status' => 'available',
-                ]
-            );
+        $skipped = 0;
+        foreach ($rows as $row) {
+            $sourceId = (string) $row['id'];
+            $title = ($row['title'] ?? '') !== '' ? (string) $row['title'] : 'Untitled listing';
 
-            $stmt = $pdo->prepare('SELECT * FROM images WHERE listing_id = :id ORDER BY seq');
-            $stmt->execute(['id' => $row['id']]);
-            $images = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $classified = ListingClassifier::classify($title, $row['description'] ?? null);
 
-            if ($images && $listing->images()->count() === 0) {
-                foreach ($images as $img) {
-                    $ext = str_contains($img['mime_type'] ?? '', 'png') ? 'png' : 'jpg';
-                    $filename = 'listings/'.uniqid('mkt_').'.'.$ext;
-                    Storage::disk('public')->put($filename, $img['data']);
+            if ($hondaOnly && ! $classified['honda']) {
+                $skipped++;
 
-                    ListingImage::create([
-                        'listing_id' => $listing->id,
-                        'path' => $filename,
-                        'seq' => (int) $img['seq'],
-                    ]);
+                continue;
+            }
+
+            // Cars keep their single chassis on the column; parts use the pivot.
+            $isCar = $classified['type'] === ListingType::Car;
+
+            $listing = $this->adoptOrCreate($sourceId, $title, [
+                'type' => $classified['type'],
+                'title' => $title,
+                'chassis' => $isCar ? ($classified['chassis'][0] ?? null) : null,
+                'category' => $classified['category'],
+                'price' => $row['price'] ?? null,
+                'description' => $row['description'] ?? null,
+                // Location is intentionally dropped: every listing is the
+                // seller's home area, so it carries no signal for the catalog.
+                'location' => null,
+                'status' => 'available',
+            ]);
+
+            if (! $isCar) {
+                $ids = array_map(
+                    fn (string $name) => Chassis::firstOrCreate(['name' => $name])->id,
+                    $classified['chassis'],
+                );
+                $listing->compatibleChassis()->sync($ids);
+            }
+
+            if ($this->option('force')) {
+                foreach ($listing->images as $existing) {
+                    Storage::disk('public')->delete($existing->path);
+                    $existing->delete();
                 }
+                $listing->unsetRelation('images');
+            }
+
+            $existingBySeq = $listing->images()->get()->keyBy('seq');
+
+            foreach ($row['images'] as $image) {
+                $seq = (int) $image['seq'];
+                $pathOnDisk = $this->storeImage($sourceId, $image, is_dir($imagesDir) ? $imagesDir : null);
+
+                if ($pathOnDisk === null) {
+                    continue;
+                }
+
+                $existing = $existingBySeq->get($seq);
+
+                if ($existing !== null) {
+                    if ($existing->path !== $pathOnDisk) {
+                        Storage::disk('public')->delete($existing->path);
+                        $existing->update(['path' => $pathOnDisk]);
+                    }
+
+                    continue;
+                }
+
+                ListingImage::create([
+                    'listing_id' => $listing->id,
+                    'path' => $pathOnDisk,
+                    'seq' => $seq,
+                ]);
             }
 
             $imported++;
@@ -68,6 +137,214 @@ class ImportMarketplace extends Command
 
         $this->info("Imported/updated {$imported} listings.");
 
+        if ($hondaOnly) {
+            $this->info("Skipped {$skipped} non-Honda listings.");
+        }
+
         return self::SUCCESS;
+    }
+
+    /**
+     * Upsert by marketplace id, but first adopt a listing that was entered by
+     * hand with the same title and no source id, so re-importing the seller's
+     * catalog does not duplicate the ones already added manually.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function adoptOrCreate(string $sourceId, string $title, array $attributes): Listing
+    {
+        $listing = Listing::query()->where('source_marketplace_id', $sourceId)->first()
+            ?? Listing::query()
+                ->whereNull('source_marketplace_id')
+                ->whereRaw('LOWER(title) = ?', [mb_strtolower($title)])
+                ->first();
+
+        if ($listing !== null) {
+            $listing->fill([...$attributes, 'source_marketplace_id' => $sourceId])->save();
+
+            return $listing;
+        }
+
+        return Listing::create([...$attributes, 'source_marketplace_id' => $sourceId]);
+    }
+
+    /**
+     * @return list<array{id: string, title: ?string, price: ?string, description: ?string, location: ?string, images: list<array{seq: int, mime_type: ?string, data: ?string}>}>
+     */
+    private function listingsFromJsonl(string $path): array
+    {
+        $rows = [];
+
+        foreach (File::lines($path) as $line) {
+            $line = trim($line);
+
+            if ($line === '') {
+                continue;
+            }
+
+            /** @var array<string, mixed> $decoded */
+            $decoded = json_decode($line, true, flags: JSON_THROW_ON_ERROR);
+            $sourceId = (string) ($decoded['id'] ?? '');
+
+            // The batch scraper writes {id, error:{...}} lines for listings it
+            // could not fetch; there is nothing to import from those.
+            if ($sourceId === '' || isset($decoded['error'])) {
+                continue;
+            }
+
+            $title = isset($decoded['title']) ? (string) $decoded['title'] : null;
+            $location = isset($decoded['location']) ? (string) $decoded['location'] : null;
+
+            // Facebook renders a struck-through original price on discounted
+            // listings, which shuffles the scraped title/location: the title
+            // comes through as a bare "$1,800" and the real title lands in
+            // location. Swap them back.
+            if ($title !== null && preg_match('/^\$[\d,]+$/', $title) && $location !== null) {
+                [$title, $location] = [$location, null];
+            }
+
+            // Prefer the human price string ("$100") over the numeric field.
+            $price = $decoded['priceText'] ?? $decoded['price'] ?? null;
+
+            $rows[] = [
+                'id' => $sourceId,
+                'title' => $title,
+                'price' => $price !== null ? (string) $price : null,
+                'description' => isset($decoded['description']) ? (string) $decoded['description'] : null,
+                'location' => $location,
+                'images' => [
+                    ['seq' => 0, 'mime_type' => null, 'data' => null],
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array{id: string, title: ?string, price: ?string, description: ?string, location: ?string, images: list<array{seq: int, mime_type: ?string, data: ?string}>}>
+     */
+    private function listingsFromSqlite(string $path): array
+    {
+        config([
+            'database.connections.marketplace_scrape' => [
+                'driver' => 'sqlite',
+                'database' => $path,
+                'prefix' => '',
+                'foreign_key_constraints' => false,
+            ],
+        ]);
+
+        try {
+            $listings = DB::connection('marketplace_scrape')->table('listings')->get();
+            $rows = [];
+
+            foreach ($listings as $listing) {
+                $sourceId = (string) $listing->id;
+                $images = DB::connection('marketplace_scrape')
+                    ->table('images')
+                    ->where('listing_id', $sourceId)
+                    ->orderBy('seq')
+                    ->get();
+
+                $imageRows = [];
+                foreach ($images as $image) {
+                    $data = $image->data;
+                    if (is_resource($data)) {
+                        $data = stream_get_contents($data);
+                    }
+
+                    $imageRows[] = [
+                        'seq' => (int) $image->seq,
+                        'mime_type' => isset($image->mime_type) ? (string) $image->mime_type : null,
+                        'data' => is_string($data) && $data !== '' ? $data : null,
+                    ];
+                }
+
+                $rows[] = [
+                    'id' => $sourceId,
+                    'title' => isset($listing->title) ? (string) $listing->title : null,
+                    'price' => isset($listing->price) ? (string) $listing->price : null,
+                    'description' => isset($listing->description) ? (string) $listing->description : null,
+                    'location' => isset($listing->location) ? (string) $listing->location : null,
+                    'images' => $imageRows,
+                ];
+            }
+
+            return $rows;
+        } finally {
+            DB::purge('marketplace_scrape');
+        }
+    }
+
+    /**
+     * @param  array{seq: int, mime_type: ?string, data: ?string}  $image
+     */
+    private function storeImage(string $sourceId, array $image, ?string $imagesDir): ?string
+    {
+        if ($image['data'] !== null) {
+            $path = $this->storagePath($sourceId, $image['seq'], $this->extensionFromMime($image['mime_type']));
+            Storage::disk('public')->put($path, ImageTrimmer::trim($image['data']));
+
+            return $path;
+        }
+
+        $fromFile = $imagesDir !== null
+            ? $this->imageFileForListing($imagesDir, $sourceId, $image['seq'])
+            : null;
+
+        if ($fromFile === null) {
+            return null;
+        }
+
+        $extension = pathinfo($fromFile, PATHINFO_EXTENSION) ?: $this->extensionFromMime($image['mime_type']);
+        $path = $this->storagePath($sourceId, $image['seq'], $extension);
+        Storage::disk('public')->put($path, ImageTrimmer::trim(File::get($fromFile)));
+
+        return $path;
+    }
+
+    private function imageFileForListing(string $imagesDir, string $sourceId, int $seq): ?string
+    {
+        $candidates = [
+            $imagesDir.DIRECTORY_SEPARATOR.$sourceId.'.jpg',
+            $imagesDir.DIRECTORY_SEPARATOR.$sourceId.'.jpeg',
+            $imagesDir.DIRECTORY_SEPARATOR.$sourceId.'.png',
+            $imagesDir.DIRECTORY_SEPARATOR.$sourceId.'_'.$seq.'.jpg',
+            $imagesDir.DIRECTORY_SEPARATOR.$sourceId.'_'.$seq.'.jpeg',
+            $imagesDir.DIRECTORY_SEPARATOR.$sourceId.'_'.$seq.'.png',
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function storagePath(string $sourceId, int $seq, string $extension): string
+    {
+        return 'listings/'.$sourceId.'-'.$seq.'.'.strtolower($extension);
+    }
+
+    private function extensionFromMime(?string $mime): string
+    {
+        return str_contains((string) $mime, 'png') ? 'png' : 'jpg';
+    }
+
+    private function isSqlite(string $path): bool
+    {
+        $handle = fopen($path, 'rb');
+
+        if ($handle === false) {
+            return false;
+        }
+
+        $header = fread($handle, 16);
+        fclose($handle);
+
+        return is_string($header) && str_starts_with($header, 'SQLite format 3');
     }
 }
