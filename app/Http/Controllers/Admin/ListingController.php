@@ -10,6 +10,7 @@ use App\Models\Listing;
 use App\Models\ListingImage;
 use App\Models\ListingVideo;
 use App\Support\ImageTrimmer;
+use App\Support\OgImageGenerator;
 use App\Support\VideoConverter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -81,7 +82,7 @@ class ListingController extends Controller
 
     public function edit(Listing $listing): View
     {
-        $listing->load(['images', 'compatibleChassis']);
+        $listing->load(['images', 'compatibleChassis', 'thumbnailImage']);
         $chassisOptions = Chassis::orderBy('name')->get();
 
         return view('admin.listings.form', compact('listing', 'chassisOptions'));
@@ -96,7 +97,7 @@ class ListingController extends Controller
         $this->storeVideos($request, $listing);
 
         if ($request->header('HX-Request')) {
-            $listing->load(['images', 'compatibleChassis']);
+            $listing->load(['images', 'compatibleChassis', 'thumbnailImage']);
             $chassisOptions = Chassis::orderBy('name')->get();
 
             return view('admin.listings.partials.form-fields', ['listing' => $listing, 'chassisOptions' => $chassisOptions, 'status' => 'Saved.']);
@@ -124,7 +125,12 @@ class ListingController extends Controller
     public function destroyImage(ListingImage $image): Response
     {
         Storage::disk('public')->delete($image->path);
+        if ($image->og_path) {
+            Storage::disk('public')->delete($image->og_path);
+        }
         $listingId = $image->listing_id;
+        // thumbnail_image_id has ON DELETE SET NULL, so a listing whose
+        // thumbnail was just removed quietly falls back to the first photo.
         $image->delete();
 
         // Renumber remaining images so seq stays contiguous
@@ -134,6 +140,20 @@ class ListingController extends Controller
         }
 
         return response('', 200);
+    }
+
+    /**
+     * Pick which photo represents this listing in the catalog grid and
+     * social/OG previews.
+     */
+    public function setThumbnail(Listing $listing, ListingImage $image): View
+    {
+        abort_unless($image->listing_id === $listing->id, 404);
+
+        $listing->update(['thumbnail_image_id' => $image->id]);
+        $listing->load('images', 'thumbnailImage');
+
+        return view('admin.listings.partials.images-grid', compact('listing'));
     }
 
     private function validated(Request $request): array
@@ -202,6 +222,7 @@ class ListingController extends Controller
             ListingImage::create([
                 'listing_id' => $listing->id,
                 'path' => $path,
+                'og_path' => OgImageGenerator::generate($path, 'public'),
                 'seq' => $nextSeq++,
             ]);
         }

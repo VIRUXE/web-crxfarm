@@ -12,6 +12,8 @@
     $metaDescription = $metaDescription ?? 'Browse used Honda parts and complete donor cars from CRX Farm in Rossville, Kansas. 150+ Hondas parted out - CRX, EF, EG, EK, Del Sol, Integra and more. US and international shipping.';
     $usingDefaultOgImage = ! isset($ogImage);
     $ogImage = $ogImage ?? asset('images/social-card.png').'?v='.filemtime(public_path('images/social-card.png'));
+    $ogImageWidth = $ogImageWidth ?? ($usingDefaultOgImage ? 1200 : null);
+    $ogImageHeight = $ogImageHeight ?? ($usingDefaultOgImage ? 630 : null);
     $ogType = $ogType ?? 'website';
     $canonicalUrl = url()->current();
 @endphp
@@ -26,9 +28,11 @@
     <meta property="og:title" content="{{ $metaTitle }}">
     <meta property="og:description" content="{{ $metaDescription }}">
     <meta property="og:image" content="{{ $ogImage }}">
+    @if($ogImageWidth && $ogImageHeight)
+    <meta property="og:image:width" content="{{ $ogImageWidth }}">
+    <meta property="og:image:height" content="{{ $ogImageHeight }}">
+    @endif
     @if($usingDefaultOgImage)
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="CRX Farm - used Honda parts and donor cars, Rossville, Kansas">
     @endif
 

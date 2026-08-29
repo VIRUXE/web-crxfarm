@@ -50,6 +50,7 @@ Route::middleware(['auth', 'active'])->prefix('admin')->name('admin.')->group(fu
     Route::delete('/listings/{listing}', [ListingController::class, 'destroy'])->name('listings.destroy');
     Route::get('/images', [ListingController::class, 'images'])->name('images.index');
     Route::delete('/images/{image}', [ListingController::class, 'destroyImage'])->name('images.destroy');
+    Route::put('/listings/{listing}/images/{image}/thumbnail', [ListingController::class, 'setThumbnail'])->name('listings.images.thumbnail');
     Route::delete('/videos/{video}', [ListingController::class, 'destroyVideo'])->name('videos.destroy');
 
     Route::get('/users', [UserController::class, 'index'])->name('users.index');

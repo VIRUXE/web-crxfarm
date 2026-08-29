@@ -10,8 +10,8 @@
             <a class="group flex h-full overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 transition duration-200 hover:-translate-y-1 hover:shadow-xl hover:ring-brand/30" href="{{ route('catalog.show', $listing) }}">
                 <article class="flex w-full flex-col">
                 <figure class="flex aspect-4/3 items-center justify-center overflow-hidden bg-zinc-100">
-                    @if($listing->images->first())
-                        <img class="h-full w-full object-cover transition duration-300 group-hover:scale-105" src="{{ $listing->images->first()->url }}" alt="{{ $listing->title }}">
+                    @if($listing->featuredImage())
+                        <img class="h-full w-full object-cover transition duration-300 group-hover:scale-105" src="{{ $listing->featuredImage()->url }}" alt="{{ $listing->title }}">
                     @else
                         <div class="flex flex-col items-center justify-center text-zinc-400">
                             <x-lucide-image-off class="size-7 stroke-[1.5]" />

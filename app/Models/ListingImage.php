@@ -11,7 +11,7 @@ class ListingImage extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['listing_id', 'path', 'seq'];
+    protected $fillable = ['listing_id', 'path', 'og_path', 'seq'];
 
     public function listing(): BelongsTo
     {
@@ -25,5 +25,17 @@ class ListingImage extends Model
         $version = $this->updated_at?->timestamp ?? 0;
 
         return Storage::disk('public')->url($this->path).'?v='.$version;
+    }
+
+    /**
+     * The 1200x630 cover-cropped variant for og:image/twitter:image, falling
+     * back to the regular photo for any row created before og_path existed.
+     */
+    public function getOgUrlAttribute(): string
+    {
+        $version = $this->updated_at?->timestamp ?? 0;
+        $path = $this->og_path ?? $this->path;
+
+        return Storage::disk('public')->url($path).'?v='.$version;
     }
 }

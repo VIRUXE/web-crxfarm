@@ -8,6 +8,7 @@ use App\Support\TitleNormalizer;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -17,7 +18,7 @@ class Listing extends Model
 
     protected $fillable = [
         'type', 'title', 'chassis', 'category', 'bolt_pattern', 'price', 'description',
-        'missing_parts', 'location', 'status', 'source_marketplace_id',
+        'missing_parts', 'location', 'status', 'source_marketplace_id', 'thumbnail_image_id',
     ];
 
     /**
@@ -101,6 +102,20 @@ class Listing extends Model
     public function images(): HasMany
     {
         return $this->hasMany(ListingImage::class)->orderBy('seq');
+    }
+
+    public function thumbnailImage(): BelongsTo
+    {
+        return $this->belongsTo(ListingImage::class, 'thumbnail_image_id');
+    }
+
+    /**
+     * The photo to feature in the catalog grid and social/OG previews: the
+     * admin-picked thumbnail if one is set, otherwise the first photo.
+     */
+    public function featuredImage(): ?ListingImage
+    {
+        return $this->thumbnailImage ?? $this->images->first();
     }
 
     public function videos(): HasMany
