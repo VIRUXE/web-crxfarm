@@ -35,12 +35,12 @@ class AdminImageManagerTest extends TestCase
 
         $withPhoto = Listing::factory()->create(['title' => 'Has Photo']);
         $withPhoto->images()->create(['path' => 'listings/b-0.webp', 'seq' => 0]);
-        Listing::factory()->create(['title' => 'Needs A Photo']);
+        Listing::factory()->create(['title' => 'Needs a Photo']);
 
         $response = $this->actingAs($user)->get(route('admin.images.index', ['missing' => 1]));
 
         $response->assertOk()
-            ->assertSee('Needs A Photo')
+            ->assertSee('Needs a Photo')
             ->assertDontSee('Has Photo');
     }
 

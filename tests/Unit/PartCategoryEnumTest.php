@@ -14,7 +14,8 @@ class PartCategoryEnumTest extends TestCase
             'exterior_body',
             'interior',
             'lighting_electrical',
-            'suspension_brakes_wheels',
+            'suspension_brakes',
+            'wheels_tires',
             'exhaust_intake',
             'other',
         ];
@@ -28,7 +29,8 @@ class PartCategoryEnumTest extends TestCase
         $this->assertSame('Exterior & Body', PartCategory::ExteriorBody->label());
         $this->assertSame('Interior', PartCategory::Interior->label());
         $this->assertSame('Lighting & Electrical', PartCategory::LightingElectrical->label());
-        $this->assertSame('Suspension, Brakes & Wheels', PartCategory::SuspensionBrakesWheels->label());
+        $this->assertSame('Suspension & Brakes', PartCategory::SuspensionBrakes->label());
+        $this->assertSame('Wheels & Tires', PartCategory::WheelsTires->label());
         $this->assertSame('Exhaust & Intake', PartCategory::ExhaustIntake->label());
         $this->assertSame('Other / Misc', PartCategory::Other->label());
     }

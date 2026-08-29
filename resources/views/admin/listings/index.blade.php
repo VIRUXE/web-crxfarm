@@ -10,6 +10,10 @@
                 <x-lucide-images class="size-4 text-zinc-500" />
                 Photos
             </a>
+            <a class="inline-flex items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm transition hover:bg-zinc-50 focus:ring-2 focus:ring-brand/20 focus:outline-none" href="{{ route('admin.users.index') }}">
+                <x-lucide-users class="size-4 text-zinc-500" />
+                Users
+            </a>
             <a class="inline-flex items-center justify-center gap-1.5 rounded-md bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-brand-dark focus:ring-2 focus:ring-brand/30 focus:outline-none" href="{{ route('admin.listings.create') }}">
                 <x-lucide-plus class="size-4" />
                 New listing
@@ -53,7 +57,12 @@
                             </span>
                         </td>
                         <td class="px-4 py-3 text-zinc-600">{{ $listing->chassisLabel() }}</td>
-                        <td class="px-4 py-3 text-zinc-600">{{ $listing->category?->label() ?? '—' }}</td>
+                        <td class="px-4 py-3 text-zinc-600">
+                            {{ $listing->category?->label() ?? '-' }}
+                            @if($listing->bolt_pattern)
+                                <span class="ml-1.5 inline-flex rounded-sm bg-amber-50 px-1.5 py-0.5 text-[0.65rem] font-bold tracking-wider text-amber-800 ring-1 ring-amber-200 uppercase">{{ $listing->bolt_pattern }}</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3 font-semibold text-zinc-800">{{ $listing->price ?: 'ask' }}</td>
                         <td class="px-4 py-3">
                             @switch($listing->status)

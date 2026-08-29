@@ -10,12 +10,12 @@ class AdminUserSeeder extends Seeder
 {
     /**
      * Seeds the local-dev admin directly into `pin_set` (PIN already usable
-     * as a fallback), NOT `active` — a seeder can't complete a real WebAuthn
+     * as a fallback), NOT `active` - a seeder can't complete a real WebAuthn
      * ceremony, so passkey enrollment still has to happen once through the
      * actual browser flow at /onboarding/passkey after logging in with this
      * PIN via the "use your PIN instead" link on /admin/login. Until that's
      * done, login is still blocked (status != active), matching production
-     * behavior — this just skips having to copy a magic link locally.
+     * behavior - this just skips having to copy a magic link locally.
      */
     public function run(): void
     {

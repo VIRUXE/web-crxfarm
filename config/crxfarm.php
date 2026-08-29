@@ -11,7 +11,7 @@ return [
     | account. Read via config() rather than a raw env() call, because
     | env() outside of config files silently falls back to its default
     | once `config:cache` is active in production (the .env file itself
-    | is skipped at that point) — routing it through config() here keeps
+    | is skipped at that point) - routing it through config() here keeps
     | it working correctly whether or not config is cached.
     |
     */

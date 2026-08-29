@@ -20,11 +20,20 @@ use Illuminate\View\View;
 
 class ListingController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): View
     {
-        $listings = Listing::with('compatibleChassis')->latest()->paginate(30);
+        $listings = Listing::query()
+            ->with('compatibleChassis')
+            ->search($request->query('q'))
+            ->latest()
+            ->paginate(30)
+            ->withQueryString();
 
-        return view('admin.listings.index', compact('listings'));
+        $view = $request->boolean('partial') || $request->header('HX-Request')
+            ? 'admin.listings.partials.table'
+            : 'admin.listings.index';
+
+        return view($view, compact('listings'));
     }
 
     public function create(): View

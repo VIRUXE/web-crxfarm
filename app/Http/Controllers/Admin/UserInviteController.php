@@ -15,10 +15,10 @@ class UserInviteController extends Controller
     }
 
     /**
-     * No email is ever sent — this app is PIN + passkey only, with no
+     * No email is ever sent - this app is PIN + passkey only, with no
      * delivery channel at all. The admin creating the account gets the
      * one-time signed link on screen and hands it to the new user however
-     * they like (in person, text, whatever) — out of band, by design.
+     * they like (in person, text, whatever) - out of band, by design.
      */
     public function store(Request $request)
     {

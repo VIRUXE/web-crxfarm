@@ -18,7 +18,7 @@ class PinSetupController extends Controller
     public function create(Request $request, User $user)
     {
         if ($user->status !== User::STATUS_INVITED) {
-            // Already set a PIN (or fully active) — this link has done its job.
+            // Already set a PIN (or fully active) - this link has done its job.
             return redirect()
                 ->route('admin.login')
                 ->with('status', 'This invite link has already been used.');
@@ -37,7 +37,7 @@ class PinSetupController extends Controller
             'pin' => ['required', 'digits:6', 'confirmed'],
         ]);
 
-        // Login is PIN-only now (no username collected at sign-in) — the
+        // Login is PIN-only now (no username collected at sign-in) - the
         // PIN itself is how a user gets identified, so two people can't
         // share one. PINs are hashed, so this has to be a linear check
         // against existing hashes rather than a WHERE clause; fine at the
@@ -49,7 +49,7 @@ class PinSetupController extends Controller
 
         if ($collision) {
             throw ValidationException::withMessages([
-                'pin' => 'That PIN is already in use by another account — pick a different one.',
+                'pin' => 'That PIN is already in use by another account - pick a different one.',
             ]);
         }
 
@@ -59,7 +59,7 @@ class PinSetupController extends Controller
             'status' => User::STATUS_PIN_SET,
         ])->save();
 
-        // Log the user in now — the passkey registration endpoint
+        // Log the user in now - the passkey registration endpoint
         // (laravel/passkeys) requires an authenticated session, and the
         // 'active' middleware keeps this session confined to the enroll
         // page until a passkey actually exists.

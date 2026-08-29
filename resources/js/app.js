@@ -60,11 +60,13 @@ window.updateListingTypeFields = function (form) {
     const checked = form.querySelector('input[name="type"]:checked');
     const type = checked ? checked.value : null;
     const categorySection = form.querySelector('#category-section');
+    const boltPatternSection = form.querySelector('#bolt-pattern-section');
     const missingPartsSection = form.querySelector('#missing-parts-section');
     const chassisCarSection = form.querySelector('#chassis-car-section');
     const chassisPartSection = form.querySelector('#chassis-part-section');
 
     if (categorySection) categorySection.classList.toggle('hidden', type === 'car');
+    if (boltPatternSection) boltPatternSection.classList.toggle('hidden', type === 'car');
     if (missingPartsSection) missingPartsSection.classList.toggle('hidden', type === 'part');
     if (chassisCarSection) chassisCarSection.classList.toggle('hidden', type === 'part');
     if (chassisPartSection) chassisPartSection.classList.toggle('hidden', type === 'car');
@@ -80,12 +82,12 @@ function initListingTypeFields() {
 
 document.addEventListener('DOMContentLoaded', () => {
     initListingTypeFields();
-    createIcons();
+    createIcons({ icons });
 });
 
-document.body.addEventListener('htmx:afterSwap', () => {
+document.body.addEventListener('htmx:afterSwap', (event) => {
     initListingTypeFields();
-    createIcons();
+    createIcons({ icons, root: event.detail?.target || document });
 });
 
 

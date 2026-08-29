@@ -22,7 +22,8 @@
 
         <select class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-sm font-medium text-zinc-800 shadow-xs outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15 sm:w-auto" name="chassis"
             hx-get="{{ route('catalog.index') }}/" hx-trigger="change" hx-target="#grid"
-            hx-include="#catalog-filters" hx-push-url="true">
+            hx-include="#catalog-filters" hx-push-url="true"
+            aria-label="Filter by chassis">
             <option value="">All chassis</option>
             @foreach($chassisOptions as $chassis)
                 <option value="{{ $chassis }}" @selected(request('chassis') === $chassis)>{{ $chassis }}</option>
@@ -30,21 +31,41 @@
         </select>
 
         <input type="hidden" name="category" id="catalog-category-input" value="{{ request('category') }}">
+        <input type="hidden" name="bolt_pattern" id="catalog-bolt-pattern-input" value="{{ request('bolt_pattern') }}">
     </form>
 
-    <nav class="mb-6 flex flex-wrap items-center gap-2" aria-label="Filter parts by category">
+    <nav class="mb-4 flex flex-wrap items-center gap-2" aria-label="Filter parts by category">
         <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis')])) }}/"
            class="inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold tracking-wide transition {{ empty(request('category')) ? 'bg-zinc-950 text-white shadow-xs' : 'bg-white text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 ring-1 ring-zinc-200' }}">
             All categories
         </a>
         @foreach($categories as $cat)
-            <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'category' => $cat->value])) }}/"
+            @php
+                $preservePattern = $cat === \App\Enums\PartCategory::WheelsTires ? request('bolt_pattern') : null;
+            @endphp
+            <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'bolt_pattern' => $preservePattern, 'category' => $cat->value])) }}/"
                class="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold tracking-wide transition {{ request('category') === $cat->value ? 'bg-zinc-950 text-white shadow-xs' : 'bg-white text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 ring-1 ring-zinc-200' }}">
                 <x-category-icon :category="$cat->value" class="size-3.5 shrink-0" />
                 {{ $cat->label() }}
             </a>
         @endforeach
     </nav>
+
+    @if(request('category') === \App\Enums\PartCategory::WheelsTires->value || request('bolt_pattern'))
+        <div class="mb-6 flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-200/80 bg-amber-50/50 px-3.5 py-2.5">
+            <span class="text-xs font-bold text-amber-900">Stud pattern:</span>
+            <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'category' => request('category')])) }}/"
+               class="inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold transition {{ empty(request('bolt_pattern')) ? 'bg-amber-700 text-white shadow-xs' : 'bg-white text-amber-900 hover:bg-amber-100 ring-1 ring-amber-200' }}">
+                All patterns
+            </a>
+            @foreach($boltPatternOptions as $pattern)
+                <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'category' => request('category'), 'bolt_pattern' => $pattern])) }}/"
+                   class="inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold transition {{ request('bolt_pattern') === $pattern ? 'bg-amber-700 text-white shadow-xs' : 'bg-white text-amber-900 hover:bg-amber-100 ring-1 ring-amber-200' }}">
+                    {{ $pattern }}
+                </a>
+            @endforeach
+        </div>
+    @endif
 
     <div id="grid" aria-live="polite">
         @include('catalog.partials.grid')

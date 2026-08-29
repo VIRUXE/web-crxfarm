@@ -103,7 +103,30 @@ class CatalogControllerTest extends TestCase
             ->assertSee('Interior')
             ->assertSee('Exterior &amp; Body', false)
             ->assertSee('Lighting &amp; Electrical', false)
-            ->assertSee('Suspension, Brakes &amp; Wheels', false);
+            ->assertSee('Suspension &amp; Brakes', false)
+            ->assertSee('Wheels &amp; Tires', false);
+    }
+
+    public function test_bolt_pattern_filter_returns_only_matching_available_listings(): void
+    {
+        Listing::factory()->create([
+            'title' => 'OZ Racing Rims 4x100',
+            'category' => PartCategory::WheelsTires,
+            'bolt_pattern' => '4x100',
+            'status' => 'available',
+        ]);
+        Listing::factory()->create([
+            'title' => 'RSX Type S Rims 5x114.3',
+            'category' => PartCategory::WheelsTires,
+            'bolt_pattern' => '5x114.3',
+            'status' => 'available',
+        ]);
+
+        $response = $this->get(route('catalog.index', ['bolt_pattern' => '4x100']));
+
+        $response->assertOk()
+            ->assertSee('OZ Racing Rims 4x100')
+            ->assertDontSee('RSX Type S Rims 5x114.3');
     }
 
     public function test_listing_show_page_displays_category_badge(): void
@@ -118,6 +141,21 @@ class CatalogControllerTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Interior');
+    }
+
+    public function test_listing_show_page_displays_bolt_pattern_badge(): void
+    {
+        $listing = Listing::factory()->create([
+            'title' => 'OZ Racing Rims 15x6',
+            'category' => PartCategory::WheelsTires,
+            'bolt_pattern' => '4x100',
+            'status' => 'available',
+        ]);
+
+        $response = $this->get(route('catalog.show', $listing));
+
+        $response->assertOk()
+            ->assertSee('4x100');
     }
 
     public function test_car_listing_displays_missing_parts_as_individual_items(): void

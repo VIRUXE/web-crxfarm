@@ -208,4 +208,48 @@ class AdminListingCategoryTest extends TestCase
         $this->assertContains('ECU', $suggestions);
         $this->assertContains('Custom B18 Engine Swap', $suggestions);
     }
+
+    public function test_admin_can_create_and_update_listing_with_bolt_pattern(): void
+    {
+        $user = User::factory()->create(['status' => User::STATUS_ACTIVE]);
+
+        $response = $this->actingAs($user)->post(route('admin.listings.store'), [
+            'type' => 'part',
+            'title' => 'OZ Racing Rims 15x6',
+            'category' => PartCategory::WheelsTires->value,
+            'bolt_pattern' => '4x100',
+            'status' => 'available',
+        ]);
+
+        $listing = Listing::first();
+        $this->assertNotNull($listing);
+        $this->assertSame('4x100', $listing->bolt_pattern);
+        $this->assertSame(PartCategory::WheelsTires, $listing->category);
+
+        $this->actingAs($user)->put(route('admin.listings.update', $listing), [
+            'type' => 'part',
+            'title' => $listing->title,
+            'category' => PartCategory::WheelsTires->value,
+            'bolt_pattern' => '4x100, 4x114.3',
+            'status' => 'available',
+        ])->assertRedirect(route('admin.listings.edit', $listing));
+
+        $listing->refresh();
+        $this->assertSame('4x100, 4x114.3', $listing->bolt_pattern);
+    }
+
+    public function test_admin_form_renders_bolt_pattern_field_and_quick_picks(): void
+    {
+        $user = User::factory()->create(['status' => User::STATUS_ACTIVE]);
+
+        $response = $this->actingAs($user)->get(route('admin.listings.create'));
+
+        $response->assertOk()
+            ->assertSee('name="bolt_pattern"', false)
+            ->assertSee('list="bolt-pattern-suggestions"', false)
+            ->assertSee('4x100')
+            ->assertSee('4x114.3')
+            ->assertSee('5x114.3')
+            ->assertSee('5x120');
+    }
 }

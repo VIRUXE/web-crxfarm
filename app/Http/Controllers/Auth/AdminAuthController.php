@@ -13,7 +13,7 @@ class AdminAuthController extends Controller
 {
     /**
      * Passkey-primary login screen, living at /admin itself (not a
-     * separate /admin/login path) — it doubles as the admin entry point.
+     * separate /admin/login path) - it doubles as the admin entry point.
      * Not gated by the 'guest' middleware, because an already-authenticated
      * visit to /admin needs to fall through to the right place instead of
      * bouncing to the framework's generic "already logged in" default
@@ -26,30 +26,33 @@ class AdminAuthController extends Controller
      * routes via JS (public/js/passkey-onboarding.js); this view also
      * offers a "use your PIN instead" fallback form posting to pinLogin().
      */
-    public function create()
+    public function create(Request $request)
     {
         if (Auth::check()) {
-            return Auth::user()->isActive()
-                ? redirect()->route('admin.listings.index')
-                : redirect()->route('onboarding.passkey.create');
+            $needsPasskey = ! Auth::user()->isActive()
+                || $request->session()->get('must_enroll_passkey');
+
+            return $needsPasskey
+                ? redirect()->route('onboarding.passkey.create')
+                : redirect()->route('admin.listings.index');
         }
 
         return view('admin.login');
     }
 
     /**
-     * PIN fallback login — PIN alone, no username collected. Since PINs
+     * PIN fallback login - PIN alone, no username collected. Since PINs
      * are hashed there's no direct lookup column to query, so this checks
      * the submitted PIN against every user with a PIN set; PinSetupController
      * enforces PIN uniqueness at setup time specifically so this resolves
      * to at most one account. Fine at the handful-of-staff scale this app
-     * runs at — this is not meant to scale to a large user base.
+     * runs at - this is not meant to scale to a large user base.
      *
      * Throttled hard (see routes/web.php, throttle:5,15) since a 6-digit
      * PIN has far less entropy than a passkey. A PIN alone never grants
      * access to the admin area: a user who has set a PIN but not yet
      * enrolled a passkey (status = pin_set) lands right back on the
-     * mandatory enroll screen instead — the 'active' middleware enforces
+     * mandatory enroll screen instead - the 'active' middleware enforces
      * that on every /admin/* request, so there's no path from "knows the
      * PIN" to "reaches the catalog admin" without a passkey existing.
      */
@@ -69,12 +72,19 @@ class AdminAuthController extends Controller
             ]);
         }
 
+        // Passkey is required to actually reach the admin area — a PIN sign-in
+        // only gets you as far as enrolling a passkey ON THIS DEVICE. The flag
+        // set below keeps this session out of /admin until a passkey is
+        // registered on it (enforced by EnsureUserIsActive). This is the single
+        // path for both first-time onboarding (status = pin_set) and adding a
+        // new device to an already-active account: on a device with no passkey
+        // the passkey button has nothing to assert, so the PIN is how you
+        // bootstrap one for that device.
         Auth::login($user, true);
         $request->session()->regenerate();
+        $request->session()->put('must_enroll_passkey', true);
 
-        return $user->isActive()
-            ? redirect()->route('admin.listings.index')
-            : redirect()->route('onboarding.passkey.create');
+        return redirect()->route('onboarding.passkey.create');
     }
 
     public function destroy(Request $request)

@@ -2,7 +2,7 @@
  * Minimal vanilla-JS WebAuthn client for laravel/passkeys, using the
  * browser's native PublicKeyCredential.parseCreationOptionsFromJSON /
  * parseRequestOptionsFromJSON + credential.toJSON() (WebAuthn Level 3,
- * widely supported) instead of the @laravel/passkeys npm package — this
+ * widely supported) instead of the @laravel/passkeys npm package - this
  * app has no JS build step, so no npm client is pulled in.
  */
 (function () {

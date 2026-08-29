@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Drops email entirely — auth is PIN + passkey only now, no email
+     * Drops email entirely - auth is PIN + passkey only now, no email
      * delivery anywhere in the app. `username` becomes the plain
      * human-readable identifier used for PIN-fallback lookup and admin
      * bookkeeping; it carries no delivery semantics.

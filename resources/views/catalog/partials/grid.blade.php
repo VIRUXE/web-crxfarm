@@ -6,7 +6,8 @@
 @else
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         @foreach($listings as $listing)
-            <a class="group flex overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 transition duration-200 hover:-translate-y-1 hover:shadow-xl hover:ring-brand/30" href="{{ route('catalog.show', $listing) }}">
+            <div class="relative">
+            <a class="group flex h-full overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 transition duration-200 hover:-translate-y-1 hover:shadow-xl hover:ring-brand/30" href="{{ route('catalog.show', $listing) }}">
                 <article class="flex w-full flex-col">
                 <figure class="flex aspect-4/3 items-center justify-center overflow-hidden bg-zinc-100">
                     @if($listing->images->first())
@@ -34,21 +35,27 @@
                         @if($listing->category)
                             <span class="inline-flex rounded-sm bg-zinc-100 px-2 py-1 text-[0.65rem] font-semibold tracking-wider text-zinc-700 uppercase ring-1 ring-zinc-200">{{ $listing->category->label() }}</span>
                         @endif
+                        @if($listing->bolt_pattern)
+                            <span class="inline-flex rounded-sm bg-amber-50 px-2 py-1 text-[0.65rem] font-bold tracking-wider text-amber-800 uppercase ring-1 ring-amber-200">{{ $listing->bolt_pattern }}</span>
+                        @endif
                     </div>
                     <h2 class="text-base leading-6 font-bold text-zinc-950">{{ $listing->title }}</h2>
                     @if($listing->chassisLabel())
                         <span class="text-xs font-bold tracking-[0.14em] text-brand uppercase">{{ $listing->chassisLabel() }}</span>
                     @endif
-                    <div class="mt-auto flex items-end justify-between gap-3 border-t border-zinc-100 pt-3">
+                    <div class="mt-auto border-t border-zinc-100 pt-3">
                         <span class="text-lg font-black text-zinc-900">{{ $listing->price ?: 'Ask for price' }}</span>
-                        <span class="inline-flex items-center gap-1 text-xs font-bold tracking-wide text-brand uppercase group-hover:underline">
-                            View
-                            <x-lucide-arrow-right class="size-3.5 transition group-hover:translate-x-0.5" />
-                        </span>
                     </div>
                 </div>
                 </article>
             </a>
+            @if(auth()->user()?->isActive())
+                <a class="absolute top-2 right-2 z-10 inline-flex size-8 items-center justify-center rounded-full bg-white/90 text-zinc-700 shadow-sm ring-1 ring-zinc-200 transition hover:bg-zinc-900 hover:text-white focus:ring-2 focus:ring-zinc-400 focus:outline-none"
+                    href="{{ route('admin.listings.edit', $listing) }}" aria-label="Edit {{ $listing->title }}" title="Edit listing">
+                    <x-lucide-pencil class="size-4" />
+                </a>
+            @endif
+            </div>
         @endforeach
     </div>
 

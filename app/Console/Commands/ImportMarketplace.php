@@ -8,6 +8,7 @@ use App\Models\Listing;
 use App\Models\ListingImage;
 use App\Support\ImageTrimmer;
 use App\Support\ListingClassifier;
+use App\Support\TitleNormalizer;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -65,7 +66,8 @@ class ImportMarketplace extends Command
         $skipped = 0;
         foreach ($rows as $row) {
             $sourceId = (string) $row['id'];
-            $title = ($row['title'] ?? '') !== '' ? (string) $row['title'] : 'Untitled listing';
+            $rawTitle = ($row['title'] ?? '') !== '' ? (string) $row['title'] : 'Untitled listing';
+            $title = TitleNormalizer::normalize($rawTitle);
 
             $classified = ListingClassifier::classify($title, $row['description'] ?? null, $row['price'] ?? null);
 
@@ -83,6 +85,7 @@ class ImportMarketplace extends Command
                 'title' => $title,
                 'chassis' => $isCar ? ($classified['chassis'][0] ?? null) : null,
                 'category' => $isCar ? null : $classified['category'],
+                'bolt_pattern' => $isCar ? null : ($classified['bolt_pattern'] ?? null),
                 'price' => $classified['clean_price'],
                 'description' => $row['description'] ?? null,
                 // Location is intentionally dropped: every listing is the

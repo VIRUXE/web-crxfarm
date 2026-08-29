@@ -67,7 +67,7 @@ class VideoConverter
             }
 
             // Poster: a frame of the already-watermarked video, encoded to WebP
-            // (no second watermark — it is baked into the frame).
+            // (no second watermark - it is baked into the frame).
             $posterPath = null;
             $poster = new Process([
                 $ffmpeg, '-hide_banner', '-loglevel', 'error', '-y',

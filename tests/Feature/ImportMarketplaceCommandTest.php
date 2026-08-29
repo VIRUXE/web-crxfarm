@@ -87,7 +87,7 @@ class ImportMarketplaceCommandTest extends TestCase
 
         $listing = Listing::query()->where('source_marketplace_id', '883122864666344')->first();
         $this->assertNotNull($listing);
-        $this->assertSame('Whelen Light bar led', $listing->title);
+        $this->assertSame('Whelen Light Bar LED', $listing->title);
 
         $image = $listing->images()->first();
         $this->assertNotNull($image);
@@ -140,7 +140,7 @@ class ImportMarketplaceCommandTest extends TestCase
         }
 
         $listing->refresh();
-        $this->assertSame('New title', $listing->title);
+        $this->assertSame('New Title', $listing->title);
         $this->assertSame(2, $listing->images()->count());
         $this->assertSame('listings/mkt-200-0.jpg', $listing->images()->where('seq', 0)->value('path'));
         $this->assertSame('listings/mkt-200-1.jpg', $listing->images()->where('seq', 1)->value('path'));

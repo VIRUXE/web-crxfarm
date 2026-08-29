@@ -44,15 +44,31 @@
         </svg>
         @break
 
-    @case(\App\Enums\PartCategory::SuspensionBrakesWheels->value)
-        {{-- Wheel with coilover strut --}}
+    @case(\App\Enums\PartCategory::SuspensionBrakes->value)
+        {{-- Coilover suspension strut and disc brake --}}
         <svg class="{{ $class }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="9" cy="15" r="5"></circle>
-            <circle cx="9" cy="15" r="1.5"></circle>
-            <path d="M15 4h4"></path>
-            <path d="M17 4v7"></path>
-            <path d="M14.5 7.5h5"></path>
-            <path d="M17 11l-3.5 3.5"></path>
+            <path d="M12 2v4"></path>
+            <path d="M8 6h8"></path>
+            <path d="M9 10h6"></path>
+            <path d="M8 14h8"></path>
+            <path d="M9 18h6"></path>
+            <path d="M12 18v4"></path>
+        </svg>
+        @break
+
+    @case(\App\Enums\PartCategory::WheelsTires->value)
+        {{-- Alloy wheel rim with spokes --}}
+        <svg class="{{ $class }}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 3v6"></path>
+            <path d="M12 15v6"></path>
+            <path d="M3 12h6"></path>
+            <path d="M15 12h6"></path>
+            <path d="m5.6 5.6 4.3 4.3"></path>
+            <path d="m14.1 14.1 4.3 4.3"></path>
+            <path d="m18.4 5.6-4.3 4.3"></path>
+            <path d="m9.9 14.1-4.3 4.3"></path>
         </svg>
         @break
 
