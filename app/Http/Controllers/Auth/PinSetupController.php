@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class PinSetupController extends Controller
 {
@@ -35,6 +36,22 @@ class PinSetupController extends Controller
         $data = $request->validate([
             'pin' => ['required', 'digits:6', 'confirmed'],
         ]);
+
+        // Login is PIN-only now (no username collected at sign-in) — the
+        // PIN itself is how a user gets identified, so two people can't
+        // share one. PINs are hashed, so this has to be a linear check
+        // against existing hashes rather than a WHERE clause; fine at the
+        // handful-of-staff scale this app operates at.
+        $collision = User::whereNotNull('pin_hash')
+            ->where('id', '!=', $user->id)
+            ->get()
+            ->contains(fn (User $other) => Hash::check($data['pin'], $other->pin_hash));
+
+        if ($collision) {
+            throw ValidationException::withMessages([
+                'pin' => 'That PIN is already in use by another account — pick a different one.',
+            ]);
+        }
 
         $user->forceFill([
             'pin_hash' => Hash::make($data['pin']),

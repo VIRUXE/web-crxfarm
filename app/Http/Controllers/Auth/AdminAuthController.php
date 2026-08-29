@@ -38,27 +38,34 @@ class AdminAuthController extends Controller
     }
 
     /**
-     * PIN fallback login. Throttled hard (see routes/web.php,
-     * throttle:5,15) since a 6-digit PIN has far less entropy than a
-     * passkey. A PIN alone never grants access to the admin area: a user
-     * who has set a PIN but not yet enrolled a passkey (status = pin_set)
-     * lands right back on the mandatory enroll screen instead — the
-     * 'active' middleware enforces that on every /admin/* request, so
-     * there's no path from "knows the PIN" to "reaches the catalog admin"
-     * without a passkey existing.
+     * PIN fallback login — PIN alone, no username collected. Since PINs
+     * are hashed there's no direct lookup column to query, so this checks
+     * the submitted PIN against every user with a PIN set; PinSetupController
+     * enforces PIN uniqueness at setup time specifically so this resolves
+     * to at most one account. Fine at the handful-of-staff scale this app
+     * runs at — this is not meant to scale to a large user base.
+     *
+     * Throttled hard (see routes/web.php, throttle:5,15) since a 6-digit
+     * PIN has far less entropy than a passkey. A PIN alone never grants
+     * access to the admin area: a user who has set a PIN but not yet
+     * enrolled a passkey (status = pin_set) lands right back on the
+     * mandatory enroll screen instead — the 'active' middleware enforces
+     * that on every /admin/* request, so there's no path from "knows the
+     * PIN" to "reaches the catalog admin" without a passkey existing.
      */
     public function pinLogin(Request $request)
     {
         $credentials = $request->validate([
-            'username' => ['required', 'string'],
             'pin' => ['required', 'digits:6'],
         ]);
 
-        $user = User::where('username', $credentials['username'])->first();
+        $user = User::whereNotNull('pin_hash')
+            ->get()
+            ->first(fn (User $candidate) => Hash::check($credentials['pin'], $candidate->pin_hash));
 
-        if (! $user || ! $user->pin_hash || ! Hash::check($credentials['pin'], $user->pin_hash)) {
+        if (! $user) {
             throw ValidationException::withMessages([
-                'username' => 'Invalid username or PIN.',
+                'pin' => 'Invalid PIN.',
             ]);
         }
 

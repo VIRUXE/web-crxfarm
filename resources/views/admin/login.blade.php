@@ -11,10 +11,6 @@
     @csrf
     @if($errors->any())<p class="status-msg" style="background:#f3dede;border-color:#b5502e">{{ $errors->first() }}</p>@endif
     <div>
-      <label>Username</label>
-      <input type="text" name="username" required>
-    </div>
-    <div>
       <label>PIN</label>
       <input type="text" inputmode="numeric" pattern="\d{6}" maxlength="6" name="pin" required autocomplete="one-time-code">
     </div>
