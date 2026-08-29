@@ -54,6 +54,7 @@ Route::middleware(['auth', 'active'])->prefix('admin')->name('admin.')->group(fu
 
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::post('/users/{user}/reset-access', [UserController::class, 'resetAccess'])->name('users.reset');
+    Route::post('/users/{user}/pin', [UserController::class, 'setPin'])->name('users.pin');
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
     Route::get('/users/invite', [UserInviteController::class, 'create'])->name('users.invite.create');

@@ -34,10 +34,11 @@
         @foreach($users as $user)
           <tr class="align-middle">
             <td class="px-4 py-3">
-              <div class="font-semibold text-zinc-900">{{ $user->name }}
-                @if($user->is(auth()->user()))<span class="ml-1 text-xs font-medium text-zinc-400">(you)</span>@endif
+              <div class="flex items-center gap-1.5 font-semibold text-zinc-900">
+                &#64;{{ $user->username }}
+                @if($user->isOwner())<span class="rounded-full bg-brand/10 px-2 py-0.5 text-[0.65rem] font-bold tracking-wider text-brand uppercase">Owner</span>@endif
+                @if($user->is(auth()->user()))<span class="text-xs font-medium text-zinc-400">(you)</span>@endif
               </div>
-              <div class="text-xs text-zinc-500">&#64;{{ $user->username }}</div>
             </td>
             <td class="px-4 py-3">
               @if($user->is_admin)
@@ -56,7 +57,14 @@
             </td>
             <td class="px-4 py-3 text-zinc-700">{{ $user->passkeys_count }}</td>
             <td class="px-4 py-3">
-              <div class="flex items-center justify-end gap-2">
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                <form method="POST" action="{{ route('admin.users.pin', $user) }}" class="flex items-center gap-1.5">
+                  @csrf
+                  <input class="w-28 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900 shadow-xs outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15" type="text" name="pin" inputmode="numeric" pattern="\d{6}" maxlength="6" placeholder="New 6-digit PIN" autocomplete="off" required>
+                  <button class="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 shadow-sm transition hover:bg-zinc-50 focus:ring-2 focus:ring-brand/20 focus:outline-none" type="submit">
+                    <x-lucide-key-round class="size-3.5 text-zinc-500" /> Set PIN
+                  </button>
+                </form>
                 @if($user->status === \App\Models\User::STATUS_ACTIVE)
                   <form method="POST" action="{{ route('admin.users.reset', $user) }}" onsubmit="return confirm('Revoke all passkeys for {{ $user->username }}? They will re-enroll with their PIN.');">
                     @csrf
@@ -65,7 +73,7 @@
                     </button>
                   </form>
                 @endif
-                @unless($user->is(auth()->user()))
+                @unless($user->is(auth()->user()) || $user->isOwner())
                   <form method="POST" action="{{ route('admin.users.destroy', $user) }}" onsubmit="return confirm('Delete {{ $user->username }}? This cannot be undone.');">
                     @csrf @method('DELETE')
                     <button class="inline-flex items-center gap-1.5 rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 shadow-sm transition hover:bg-red-50 focus:ring-2 focus:ring-red-200 focus:outline-none" type="submit">

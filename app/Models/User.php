@@ -29,9 +29,21 @@ class User extends Authenticatable implements PasskeyUser
 
     public const STATUS_ACTIVE = 'active';
 
+    /**
+     * The store owner's account. This user can never be deleted — the guard
+     * lives in Admin\UserController::destroy and the delete control is hidden
+     * for them in the users table.
+     */
+    public const OWNER_USERNAME = 'jeremiah';
+
     public function isActive(): bool
     {
         return $this->status === self::STATUS_ACTIVE;
+    }
+
+    public function isOwner(): bool
+    {
+        return $this->username === self::OWNER_USERNAME;
     }
 
     /**

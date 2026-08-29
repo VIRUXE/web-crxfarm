@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
@@ -40,10 +41,50 @@ class UserController extends Controller
         return back()->with('status', "Passkeys revoked for {$user->username} — they'll re-enroll with their PIN next time they sign in.");
     }
 
+    /**
+     * Set or replace a user's 6-digit PIN. Login is PIN-only for
+     * identification, so the PIN must be unique across accounts (PINs are
+     * hashed, hence the linear check against other users' hashes). An invited
+     * user who never had a PIN advances to `pin_set`; an already-active user
+     * keeps their status — this is just a PIN change for them.
+     */
+    public function setPin(Request $request, User $user)
+    {
+        $data = $request->validate([
+            'pin' => ['required', 'digits:6'],
+        ]);
+
+        $collision = User::whereNotNull('pin_hash')
+            ->where('id', '!=', $user->id)
+            ->get()
+            ->contains(fn (User $other) => Hash::check($data['pin'], $other->pin_hash));
+
+        if ($collision) {
+            return back()->withErrors(['pin' => "That PIN is already in use by another account — pick a different one."]);
+        }
+
+        $attributes = [
+            'pin_hash' => Hash::make($data['pin']),
+            'pin_set_at' => now(),
+        ];
+
+        if ($user->status === User::STATUS_INVITED) {
+            $attributes['status'] = User::STATUS_PIN_SET;
+        }
+
+        $user->forceFill($attributes)->save();
+
+        return back()->with('status', "PIN updated for {$user->username}.");
+    }
+
     public function destroy(Request $request, User $user)
     {
         if ($user->is($request->user())) {
             return back()->withErrors(['user' => "You can't delete your own account."]);
+        }
+
+        if ($user->isOwner()) {
+            return back()->withErrors(['user' => "The owner account can't be deleted."]);
         }
 
         if ($user->is_admin && User::where('is_admin', true)->count() <= 1) {
