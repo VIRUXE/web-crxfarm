@@ -110,6 +110,40 @@
     <p class="text-sm text-zinc-500">Select a category for individual parts.</p>
   </fieldset>
 
+  <fieldset class="flex flex-col gap-1.5" id="bolt-pattern-section">
+    <legend class="mb-1.5 text-sm font-bold text-zinc-800">Bolt / Stud pattern</legend>
+    <input class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-zinc-900 shadow-xs outline-none transition placeholder:text-zinc-400 focus:border-brand focus:ring-2 focus:ring-brand/15"
+      type="text"
+      name="bolt_pattern"
+      id="bolt-pattern-input"
+      list="bolt-pattern-suggestions"
+      autocomplete="off"
+      placeholder="e.g. 4x100 or 5x114.3"
+      value="{{ old('bolt_pattern', $listing->bolt_pattern) }}">
+    <datalist id="bolt-pattern-suggestions">
+      @foreach(\App\Models\Listing::standardBoltPatterns() as $patternOption)
+        <option value="{{ $patternOption }}"></option>
+      @endforeach
+      <option value="4x100, 4x114.3"></option>
+    </datalist>
+    <div class="mt-1 flex flex-wrap items-center gap-1.5">
+      <span class="text-xs text-zinc-400">Quick pick:</span>
+      @foreach(['4x100', '4x114.3', '5x114.3', '5x120', '4x100, 4x114.3'] as $quickPattern)
+        <button type="button"
+          class="inline-flex cursor-pointer items-center rounded-sm bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-200 transition"
+          onclick="document.getElementById('bolt-pattern-input').value='{{ $quickPattern }}'">
+          {{ $quickPattern }}
+        </button>
+      @endforeach
+      <button type="button"
+        class="inline-flex cursor-pointer items-center rounded-sm bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-500 hover:bg-zinc-200 transition"
+        onclick="document.getElementById('bolt-pattern-input').value=''">
+        Clear
+      </button>
+    </div>
+    <p class="text-sm text-zinc-500">For wheels and rims. 4x100 for Civic/CRX/Del Sol/Fit; 4x114.3 for Accord/Prelude; 5x114.3 for ITR/RSX/CR-V/S2000.</p>
+  </fieldset>
+
   <fieldset class="flex flex-col gap-1.5">
     <legend class="mb-1.5 text-sm font-bold text-zinc-800">Price</legend>
     <div class="relative">
@@ -244,11 +278,39 @@
     <p class="text-sm text-zinc-500">No limit; select multiple files if needed.</p>
   </fieldset>
 
+  <fieldset class="flex flex-col gap-1.5">
+    <legend class="mb-1.5 text-sm font-bold text-zinc-800">Add videos</legend>
+    <input class="block w-full rounded-md border border-zinc-300 bg-white text-sm text-zinc-700 shadow-xs file:mr-4 file:border-0 file:bg-zinc-100 file:px-4 file:py-2.5 file:font-semibold file:text-zinc-800 hover:file:bg-zinc-200 focus:ring-2 focus:ring-brand/15 focus:outline-none" type="file" name="videos[]" multiple accept="video/*">
+    <p class="text-sm text-zinc-500">MP4/MOV/WebM up to 256MB each. Converted to WebM with a watermark on save.</p>
+    @error('videos.*')<p class="text-sm font-semibold text-brand">{{ $message }}</p>@enderror
+  </fieldset>
+
   <button class="inline-flex self-start items-center justify-center gap-1.5 rounded-md bg-brand px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-dark focus:ring-2 focus:ring-brand/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50" type="submit">
     <x-lucide-check class="size-4" />
     Save listing
   </button>
 </form>
+
+@if($listing->exists && $listing->videos->isNotEmpty())
+  <h2 class="mt-8 mb-4 text-xl font-bold">Videos</h2>
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    @foreach($listing->videos as $vid)
+      <div class="overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-zinc-200" id="video-{{ $vid->id }}">
+        <video class="aspect-4/3 w-full bg-black object-contain" controls preload="none" @if($vid->poster_url) poster="{{ $vid->poster_url }}" @endif>
+          <source src="{{ $vid->url }}" type="video/webm">
+        </video>
+        <div class="p-4">
+          <button class="inline-flex items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-700 shadow-sm transition hover:border-red-300 hover:bg-red-50 hover:text-brand focus:ring-2 focus:ring-brand/20 focus:outline-none" hx-delete="{{ route('admin.videos.destroy', $vid) }}"
+            hx-target="#video-{{ $vid->id }}" hx-swap="outerHTML swap:200ms"
+            hx-confirm="Remove this video?">
+            <x-lucide-trash-2 class="size-4 text-red-600" />
+            Remove
+          </button>
+        </div>
+      </div>
+    @endforeach
+  </div>
+@endif
 
 @if($listing->exists && $listing->images->isNotEmpty())
   <h2 class="mt-8 mb-4 text-xl font-bold">Photos</h2>

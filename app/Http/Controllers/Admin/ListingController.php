@@ -8,7 +8,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Chassis;
 use App\Models\Listing;
 use App\Models\ListingImage;
+use App\Models\ListingVideo;
 use App\Support\ImageTrimmer;
+use App\Support\VideoConverter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -63,6 +65,7 @@ class ListingController extends Controller
 
         $this->syncChassis($request, $listing);
         $this->storeImages($request, $listing);
+        $this->storeVideos($request, $listing);
 
         return redirect()->route('admin.listings.edit', $listing)->with('status', 'Listing created.');
     }
@@ -81,6 +84,7 @@ class ListingController extends Controller
 
         $this->syncChassis($request, $listing);
         $this->storeImages($request, $listing);
+        $this->storeVideos($request, $listing);
 
         if ($request->header('HX-Request')) {
             $listing->load(['images', 'compatibleChassis']);
@@ -96,6 +100,12 @@ class ListingController extends Controller
     {
         foreach ($listing->images as $image) {
             Storage::disk('public')->delete($image->path);
+        }
+        foreach ($listing->videos as $video) {
+            Storage::disk('public')->delete($video->path);
+            if ($video->poster_path) {
+                Storage::disk('public')->delete($video->poster_path);
+            }
         }
         $listing->delete();
 
@@ -127,6 +137,7 @@ class ListingController extends Controller
             'chassis_ids.*' => ['integer', 'exists:chassis,id'],
             'chassis_other' => ['nullable', 'string', 'max:255'],
             'category' => ['nullable', 'string', Rule::enum(PartCategory::class)],
+            'bolt_pattern' => ['nullable', 'string', 'max:50'],
             'price' => ['nullable', 'string', 'max:100'],
             'description' => ['nullable', 'string'],
             'missing_parts' => ['nullable'],
@@ -185,5 +196,44 @@ class ListingController extends Controller
                 'seq' => $nextSeq++,
             ]);
         }
+    }
+
+    private function storeVideos(Request $request, Listing $listing): void
+    {
+        if (! $request->hasFile('videos')) {
+            return;
+        }
+
+        $request->validate([
+            'videos' => ['array'],
+            'videos.*' => ['file', 'mimetypes:video/mp4,video/quicktime,video/webm,video/x-matroska,video/avi,video/x-msvideo', 'max:262144'], // 256MB
+        ]);
+
+        $nextSeq = (int) $listing->videos()->max('seq') + ($listing->videos()->exists() ? 1 : 0);
+
+        foreach ($request->file('videos') as $file) {
+            $stored = VideoConverter::store((string) file_get_contents($file->getRealPath()));
+            if ($stored === false) {
+                continue;
+            }
+
+            ListingVideo::create([
+                'listing_id' => $listing->id,
+                'path' => $stored['path'],
+                'poster_path' => $stored['poster_path'],
+                'seq' => $nextSeq++,
+            ]);
+        }
+    }
+
+    public function destroyVideo(ListingVideo $video): Response
+    {
+        Storage::disk('public')->delete($video->path);
+        if ($video->poster_path) {
+            Storage::disk('public')->delete($video->poster_path);
+        }
+        $video->delete();
+
+        return response('', 200);
     }
 }

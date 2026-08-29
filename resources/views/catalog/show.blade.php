@@ -1,11 +1,30 @@
 @extends('layouts.app')
 @section('content')
-    <a class="mb-5 inline-flex items-center gap-1.5 text-sm font-semibold text-zinc-600 transition hover:text-brand" href="{{ route('catalog.index') }}">
-        <x-lucide-arrow-left class="size-4" />
-        Back to inventory
-    </a>
+    <div class="mb-5 flex items-center justify-between gap-3">
+        <a class="inline-flex items-center gap-1.5 text-sm font-semibold text-zinc-600 transition hover:text-brand" href="{{ route('catalog.index') }}">
+            <x-lucide-arrow-left class="size-4" />
+            Back to inventory
+        </a>
+        @if(auth()->user()?->isActive())
+            <a class="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-bold tracking-wide text-white uppercase shadow-sm transition hover:bg-zinc-700 focus:ring-2 focus:ring-zinc-400 focus:outline-none" href="{{ route('admin.listings.edit', $listing) }}">
+                <x-lucide-pencil class="size-3.5" />
+                Edit listing
+            </a>
+        @endif
+    </div>
     <div class="grid gap-7 md:grid-cols-[1.1fr_1fr]">
         <div class="flex flex-col gap-3" data-lightbox-gallery>
+            @foreach($listing->videos as $video)
+                <div class="relative overflow-hidden rounded-lg bg-black shadow-sm ring-1 ring-zinc-200">
+                    <video class="w-full" controls preload="none" playsinline
+                        @if($video->poster_url) poster="{{ $video->poster_url }}" @endif>
+                        <source src="{{ $video->url }}" type="video/webm">
+                    </video>
+                    <span class="pointer-events-none absolute top-2 left-2 inline-flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-[11px] font-semibold tracking-wide text-white uppercase">
+                        <x-lucide-play class="size-3" /> Video
+                    </span>
+                </div>
+            @endforeach
             @forelse($listing->images as $image)
                 <button type="button"
                     class="group relative block w-full cursor-zoom-in overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 focus:ring-2 focus:ring-brand/40 focus:outline-none"
@@ -41,6 +60,11 @@
                     @if($listing->category)
                         <a href="{{ route('catalog.index', ['category' => $listing->category->value]) }}" class="inline-flex rounded-sm bg-zinc-100 px-2.5 py-1 text-xs font-semibold tracking-wider text-zinc-700 uppercase ring-1 ring-zinc-200 hover:bg-zinc-200 transition">
                             {{ $listing->category->label() }}
+                        </a>
+                    @endif
+                    @if($listing->bolt_pattern)
+                        <a href="{{ route('catalog.index', ['bolt_pattern' => $listing->bolt_pattern]) }}" class="inline-flex rounded-sm bg-amber-50 px-2.5 py-1 text-xs font-bold tracking-wider text-amber-800 uppercase ring-1 ring-amber-200 hover:bg-amber-100 transition">
+                            {{ $listing->bolt_pattern }}
                         </a>
                     @endif
                 </div>

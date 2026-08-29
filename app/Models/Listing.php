@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\ListingType;
 use App\Enums\PartCategory;
+use App\Support\TitleNormalizer;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -14,7 +16,7 @@ class Listing extends Model
     use HasFactory;
 
     protected $fillable = [
-        'type', 'title', 'chassis', 'category', 'price', 'description',
+        'type', 'title', 'chassis', 'category', 'bolt_pattern', 'price', 'description',
         'missing_parts', 'location', 'status', 'source_marketplace_id',
     ];
 
@@ -26,6 +28,28 @@ class Listing extends Model
         return [
             'type' => ListingType::class,
             'category' => PartCategory::class,
+        ];
+    }
+
+    protected function title(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value) => $value !== null ? TitleNormalizer::normalize($value) : null,
+        );
+    }
+
+    /**
+     * Standard Honda/Acura bolt patterns for filtering and quick selection.
+     *
+     * @return list<string>
+     */
+    public static function standardBoltPatterns(): array
+    {
+        return [
+            '4x100',
+            '4x114.3',
+            '5x114.3',
+            '5x120',
         ];
     }
 
@@ -79,6 +103,11 @@ class Listing extends Model
         return $this->hasMany(ListingImage::class)->orderBy('seq');
     }
 
+    public function videos(): HasMany
+    {
+        return $this->hasMany(ListingVideo::class)->orderBy('seq');
+    }
+
     /**
      * Chassis a part fits. Cars use the single `chassis` column instead,
      * since a car listing is always exactly one chassis.
@@ -109,6 +138,7 @@ class Listing extends Model
         return $query->where(function ($q) use ($term) {
             $q->where('title', 'like', "%{$term}%")
                 ->orWhere('chassis', 'like', "%{$term}%")
+                ->orWhere('bolt_pattern', 'like', "%{$term}%")
                 ->orWhere('description', 'like', "%{$term}%")
                 ->orWhereHas('compatibleChassis', fn ($cq) => $cq->where('name', 'like', "%{$term}%"));
         });
@@ -124,6 +154,15 @@ class Listing extends Model
             $q->where('chassis', $chassis)
                 ->orWhereHas('compatibleChassis', fn ($cq) => $cq->where('name', $chassis));
         });
+    }
+
+    public function scopeBoltPattern($query, ?string $boltPattern)
+    {
+        if (! $boltPattern) {
+            return $query;
+        }
+
+        return $query->where('bolt_pattern', 'like', "%{$boltPattern}%");
     }
 
     public function scopeCategory($query, PartCategory|string|null $category)
