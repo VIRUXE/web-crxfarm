@@ -80,6 +80,25 @@ This app is served from a **subpath**, not domain root, following the same patte
 3. `nginx -t` to validate, back up the existing config first, then `systemctl reload nginx`.
 4. Make sure `storage/` and `bootstrap/cache/` are writable by `www-data`, and `public/storage` is the symlink created by `artisan storage:link`.
 
+### Listing photos & videos (Cloudflare R2)
+
+Production serves listing photos/videos from Cloudflare R2 instead of local disk - the `public` filesystem disk (`config/filesystems.php`) switches from `local` to `s3` when `FILESYSTEM_PUBLIC_DRIVER=s3` is set, pointed at R2 via its S3-compatible API. The disk name didn't change, so every `Storage::disk('public')` call site in the app is unaffected either way.
+
+Set these in production `.env` (leave `FILESYSTEM_PUBLIC_DRIVER` unset in local dev to keep using local disk + `artisan storage:link`):
+
+```
+FILESYSTEM_PUBLIC_DRIVER=s3
+FILESYSTEM_PUBLIC_URL=https://pub-24013a09b0c344bda771e681dea90f9e.r2.dev
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_REGION=auto
+R2_BUCKET=crxfarm-media
+R2_ENDPOINT=https://<cloudflare-account-id>.us.r2.cloudflarestorage.com
+R2_USE_PATH_STYLE_ENDPOINT=true
+```
+
+The `crxfarm-media` R2 bucket is created under the `us` jurisdiction (hard US data-residency guarantee, not just a location hint) since this catalog is US-facing. Its R2 API token is scoped to just this bucket (Object Read & Write) - not an account-wide token.
+
 ## Notes / judgment calls
 
 - Admin auth is Laravel's normal session auth with a single seeded admin user (`jeremiah@crxfarm.local`) rather than a full multi-user system - deliberately minimal for a one-operator shop.
