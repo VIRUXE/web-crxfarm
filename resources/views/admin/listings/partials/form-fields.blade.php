@@ -1,3 +1,4 @@
+<div id="form-fields">
 @if(isset($status))
   <div class="mb-5 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800" role="status">
     <x-lucide-check-circle-2 class="size-4 shrink-0 text-emerald-600" />
@@ -313,3 +314,4 @@
 @endif
 
 @include('admin.listings.partials.images-grid', ['listing' => $listing])
+</div>

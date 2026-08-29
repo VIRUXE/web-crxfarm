@@ -6,7 +6,5 @@
     </a>
     <p class="mb-1 text-xs font-bold tracking-[0.2em] text-brand uppercase">Store management</p>
     <h1 class="mb-6 text-3xl font-black tracking-tight text-zinc-950">{{ $listing->exists ? 'Edit listing' : 'New listing' }}</h1>
-    <div id="form-fields">
-        @include('admin.listings.partials.form-fields')
-    </div>
+    @include('admin.listings.partials.form-fields')
 @endsection
