@@ -65,6 +65,26 @@ class ImageTrimmer
     }
 
     /**
+     * A transparent PNG of the given size carrying just the tiled CRXFARM
+     * watermark, for overlaying onto video frames with ffmpeg.
+     */
+    public static function watermarkOverlay(int $width, int $height): string
+    {
+        $im = imagecreatetruecolor($width, $height);
+        imagesavealpha($im, true);
+        imagealphablending($im, false);
+        imagefill($im, 0, 0, imagecolorallocatealpha($im, 0, 0, 0, 127)); // fully transparent
+        imagealphablending($im, true); // let the mark blend onto the clear canvas
+
+        self::watermark($im, 'CRXFARM');
+
+        ob_start();
+        imagepng($im);
+
+        return (string) ob_get_clean();
+    }
+
+    /**
      * Trim black borders from an image in binary string form.
      */
     public static function trim(string $binaryData, int $threshold = 30): string
