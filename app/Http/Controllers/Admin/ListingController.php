@@ -33,6 +33,30 @@ class ListingController extends Controller
         return view('admin.listings.form', compact('listing', 'chassisOptions'));
     }
 
+    /**
+     * Grid of every listing's photos for quick review and pruning of bad
+     * images. Optionally filter to listings with no photos so gaps are easy to
+     * find and fix.
+     */
+    public function images(Request $request): View
+    {
+        $onlyMissing = $request->boolean('missing');
+
+        $listings = Listing::query()
+            ->with('images')
+            ->when($onlyMissing, fn ($q) => $q->doesntHave('images'), fn ($q) => $q->has('images'))
+            ->orderByDesc('id')
+            ->paginate(12)
+            ->withQueryString();
+
+        $totals = [
+            'images' => ListingImage::count(),
+            'missing' => Listing::doesntHave('images')->count(),
+        ];
+
+        return view('admin.images.index', compact('listings', 'totals', 'onlyMissing'));
+    }
+
     public function store(Request $request): RedirectResponse
     {
         $listing = Listing::create($this->validated($request));

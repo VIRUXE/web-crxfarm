@@ -47,6 +47,7 @@ Route::middleware(['auth', 'active'])->prefix('admin')->name('admin.')->group(fu
     Route::get('/listings/{listing}/edit', [ListingController::class, 'edit'])->name('listings.edit');
     Route::put('/listings/{listing}', [ListingController::class, 'update'])->name('listings.update');
     Route::delete('/listings/{listing}', [ListingController::class, 'destroy'])->name('listings.destroy');
+    Route::get('/images', [ListingController::class, 'images'])->name('images.index');
     Route::delete('/images/{image}', [ListingController::class, 'destroyImage'])->name('images.destroy');
 
     Route::get('/users/invite', [UserInviteController::class, 'create'])->name('users.invite.create');
