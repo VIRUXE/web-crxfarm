@@ -22,6 +22,8 @@
 /storage/*.key
 /storage/pail
 /vendor
+/.playwright-mcp/
+/.claude/settings.local.json
 _ide_helper.php
 Homestead.json
 Homestead.yaml

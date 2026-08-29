@@ -69,9 +69,8 @@
 
                 <a class="mt-2 inline-flex items-center justify-center gap-2 rounded-md bg-brand px-5 py-3 text-sm font-bold tracking-wide text-white uppercase shadow-sm transition hover:bg-brand-dark focus:ring-2 focus:ring-brand/30 focus:outline-none" href="https://m.me/jeremiah.freeman.116318" target="_blank" rel="noopener">
                     <x-lucide-message-circle class="size-4.5" />
-                    Ask Jeremiah about this part
+                    Message on Facebook Messenger
                 </a>
-                <p class="text-center text-xs text-zinc-500">Message Jeremiah on Facebook for availability and shipping.</p>
             </div>
         </aside>
     </div>

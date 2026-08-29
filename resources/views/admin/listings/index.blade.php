@@ -1,29 +1,85 @@
 @extends('layouts.app')
 @section('content')
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <h1>Listings</h1>
-    <div>
-      <a class="btn" href="{{ route('admin.listings.create') }}">+ New listing</a>
-      <form action="{{ route('admin.logout') }}" method="POST" style="display:inline">
-        @csrf
-        <button class="btn ghost" type="submit">Log out</button>
-      </form>
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <p class="mb-1 text-xs font-bold tracking-[0.2em] text-brand uppercase">Store management</p>
+            <h1 class="text-3xl font-black tracking-tight text-zinc-950">Listings</h1>
+        </div>
+        <div class="flex gap-2">
+            <a class="inline-flex items-center justify-center gap-1.5 rounded-md bg-brand px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-brand-dark focus:ring-2 focus:ring-brand/30 focus:outline-none" href="{{ route('admin.listings.create') }}">
+                <x-lucide-plus class="size-4" />
+                New listing
+            </a>
+            <form action="{{ route('admin.logout') }}" method="POST">
+                @csrf
+                <button class="inline-flex items-center justify-center gap-1.5 rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 shadow-sm transition hover:bg-zinc-50 focus:ring-2 focus:ring-brand/20 focus:outline-none" type="submit">
+                    <x-lucide-log-out class="size-4 text-zinc-500" />
+                    Log out
+                </button>
+            </form>
+        </div>
     </div>
-  </div>
-  <table class="admin">
-    <thead><tr><th>Title</th><th>Type</th><th>Chassis</th><th>Price</th><th>Status</th><th></th></tr></thead>
-    <tbody>
-      @foreach($listings as $listing)
-        <tr>
-          <td>{{ $listing->title }}</td>
-          <td>{{ $listing->type }}</td>
-          <td>{{ $listing->chassis }}</td>
-          <td>{{ $listing->price ?: 'ask' }}</td>
-          <td>{{ $listing->status }}</td>
-          <td><a href="{{ route('admin.listings.edit', $listing) }}">Edit</a></td>
-        </tr>
-      @endforeach
-    </tbody>
-  </table>
-  <div class="pagination">{{ $listings->links() }}</div>
+
+    <div class="overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
+        <table class="min-w-full divide-y divide-zinc-200 text-left text-sm">
+            <thead class="bg-zinc-50 text-xs tracking-wider text-zinc-500 uppercase">
+                <tr>
+                    <th class="px-4 py-3 font-bold">Title</th>
+                    <th class="px-4 py-3 font-bold">Type</th>
+                    <th class="px-4 py-3 font-bold">Chassis</th>
+                    <th class="px-4 py-3 font-bold">Category</th>
+                    <th class="px-4 py-3 font-bold">Price</th>
+                    <th class="px-4 py-3 font-bold">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-100">
+                @foreach($listings as $listing)
+                    <tr class="transition hover:bg-zinc-50">
+                        <td class="px-4 py-3 font-semibold text-zinc-950">
+                            <a class="hover:text-brand hover:underline" href="{{ route('admin.listings.edit', $listing) }}">{{ $listing->title }}</a>
+                        </td>
+                        <td class="px-4 py-3 text-zinc-600">
+                            <span class="inline-flex items-center gap-1">
+                                @if($listing->isCar())
+                                    <x-lucide-car class="size-3.5 text-zinc-500" />
+                                @else
+                                    <x-lucide-wrench class="size-3.5 text-zinc-500" />
+                                @endif
+                                {{ $listing->type?->label() ?? $listing->type }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-zinc-600">{{ $listing->chassisLabel() }}</td>
+                        <td class="px-4 py-3 text-zinc-600">{{ $listing->category?->label() ?? '—' }}</td>
+                        <td class="px-4 py-3 font-semibold text-zinc-800">{{ $listing->price ?: 'ask' }}</td>
+                        <td class="px-4 py-3">
+                            @switch($listing->status)
+                                @case('available')
+                                    <span class="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                                        <x-lucide-check-circle-2 class="size-3 text-emerald-600" />
+                                        Available
+                                    </span>
+                                    @break
+                                @case('pending')
+                                    <span class="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                                        <x-lucide-clock class="size-3 text-amber-600" />
+                                        Pending
+                                    </span>
+                                    @break
+                                @case('sold')
+                                    <span class="inline-flex items-center gap-1 rounded-full border border-zinc-300 bg-zinc-100 px-2.5 py-0.5 text-xs font-semibold text-zinc-700">
+                                        <x-lucide-tag class="size-3 text-zinc-500" />
+                                        Sold
+                                    </span>
+                                    @break
+                                @default
+                                    <span class="inline-flex rounded-full border border-zinc-300 px-2.5 py-0.5 text-xs font-semibold text-zinc-700">{{ $listing->status }}</span>
+                            @endswitch
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+
+    <div class="mt-6">{{ $listings->links() }}</div>
 @endsection

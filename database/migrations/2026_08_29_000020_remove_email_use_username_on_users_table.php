@@ -30,6 +30,7 @@ return new class extends Migration
         });
 
         Schema::table('users', function (Blueprint $table) {
+            $table->dropUnique(['email']);
             $table->string('username')->nullable(false)->change();
             $table->dropColumn(['email', 'email_verified_at']);
         });
@@ -47,6 +48,7 @@ return new class extends Migration
         });
 
         Schema::table('users', function (Blueprint $table) {
+            $table->dropUnique(['username']);
             $table->dropColumn('username');
         });
     }

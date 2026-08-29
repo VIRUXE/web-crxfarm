@@ -15,11 +15,8 @@
     <header class="border-b border-zinc-800 bg-zinc-950 px-4 text-white shadow-lg sm:px-6">
         <div class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 py-4">
             <a class="group flex items-center gap-3 no-underline" href="{{ route('catalog.index') }}">
-                <span class="grid size-10 place-items-center rounded-sm bg-brand text-lg font-black tracking-tighter text-white shadow-sm transition group-hover:bg-brand-dark">CF</span>
-                <span>
-                    <span class="block text-xl font-black tracking-[0.12em]">CRX<span class="text-brand">FARM</span></span>
-                    <span class="block text-[0.65rem] font-semibold tracking-[0.18em] text-zinc-400 uppercase">Honda parts & donor cars</span>
-                </span>
+                <img src="{{ asset('images/crxfarm-logo.png') }}" alt="CRX Farm" class="h-10 w-auto">
+                <span class="block text-[0.65rem] font-semibold tracking-[0.18em] text-zinc-400 uppercase">Honda parts & donor cars</span>
             </a>
             <div class="text-right text-xs leading-5 text-zinc-300">
                 <span class="flex items-center justify-end gap-1.5 font-semibold text-white">
@@ -50,9 +47,8 @@
     <footer class="mt-12 border-t-4 border-brand bg-zinc-950 px-4 text-zinc-300 sm:px-6">
         <div class="mx-auto grid w-full max-w-6xl gap-8 py-10 sm:grid-cols-[1.3fr_1fr_auto] sm:items-start">
             <div>
-                <a class="inline-flex items-center gap-3 no-underline" href="{{ route('catalog.index') }}">
-                    <span class="grid size-9 place-items-center rounded-sm bg-brand text-sm font-black tracking-tighter text-white">CF</span>
-                    <span class="text-lg font-black tracking-[0.12em] text-white">CRX<span class="text-brand">FARM</span></span>
+                <a class="inline-flex items-center no-underline" href="{{ route('catalog.index') }}">
+                    <img src="{{ asset('images/crxfarm-logo.png') }}" alt="CRX Farm" class="h-8 w-auto">
                 </a>
                 <p class="mt-4 max-w-md text-sm leading-6 text-zinc-400">Used Honda parts and donor cars from Rossville, Kansas. Jeremiah ships parts across the United States and internationally.</p>
             </div>
