@@ -10,9 +10,17 @@ use Illuminate\Support\Str;
 class ImageTrimmer
 {
     /**
-     * Process an image: crop black borders (if any), add "CRXFARM" watermark, and convert to WebP.
+     * Longest edge (px) a stored photo is scaled down to. Full-resolution
+     * phone photos are multi-megabyte and stall the gallery; this keeps them
+     * web-sized while staying sharp on any listing page.
      */
-    public static function process(string $binaryData, int $quality = 90): string
+    public const MAX_DIMENSION = 1600;
+
+    /**
+     * Process an image: crop black borders, downscale to a web size, add the
+     * "CRXFARM" watermark, and convert to WebP.
+     */
+    public static function process(string $binaryData, int $quality = 82): string
     {
         $im = @imagecreatefromstring($binaryData);
         if ($im === false) {
@@ -24,9 +32,36 @@ class ImageTrimmer
         imagesavealpha($im, true);
 
         $trimmed = self::trimGdImage($im);
-        $watermarked = self::watermark($trimmed, 'CRXFARM');
+        $sized = self::downscale($trimmed, self::MAX_DIMENSION);
+        $watermarked = self::watermark($sized, 'CRXFARM');
 
         return self::convertToWebp($watermarked, $quality);
+    }
+
+    /**
+     * Scale an image down so its longest edge is at most $maxDimension.
+     * Returns the original untouched when it is already small enough.
+     */
+    public static function downscale(GdImage $im, int $maxDimension): GdImage
+    {
+        $w = imagesx($im);
+        $h = imagesy($im);
+        $longest = max($w, $h);
+
+        if ($longest <= $maxDimension) {
+            return $im;
+        }
+
+        $scale = $maxDimension / $longest;
+        $nw = max(1, (int) round($w * $scale));
+        $nh = max(1, (int) round($h * $scale));
+
+        $dst = imagecreatetruecolor($nw, $nh);
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+        imagecopyresampled($dst, $im, 0, 0, 0, 0, $nw, $nh, $w, $h);
+
+        return $dst;
     }
 
     /**

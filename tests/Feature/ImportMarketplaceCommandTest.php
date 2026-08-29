@@ -233,7 +233,7 @@ class ImportMarketplaceCommandTest extends TestCase
         $this->assertNotNull($car);
         $this->assertSame('car', $car->type->value);
         $this->assertNull($car->category);
-        $this->assertSame('$1,234', $car->price);
+        $this->assertNull($car->price);
     }
 
     public function test_import_downloads_remote_photos_and_stores_them_watermarked(): void
@@ -310,5 +310,39 @@ class ImportMarketplaceCommandTest extends TestCase
         $this->assertSame(1, Listing::query()->where('title', 'CRX Sunroof Panels')->count());
         $manual->refresh();
         $this->assertSame('mkt-777', $manual->source_marketplace_id);
+    }
+
+    public function test_import_skips_non_image_downloads_like_videos(): void
+    {
+        Storage::fake('public');
+
+        // Facebook galleries include videos; their URLs return MP4 bytes.
+        $mp4 = "\x00\x00\x00\x1cftypisom\x00\x00\x02\x00isomiso2mp41".str_repeat('x', 64);
+        Http::fake([
+            'scontent-fra5-2.xx.fbcdn.net/*' => Http::response($mp4, 200, ['Content-Type' => 'video/mp4']),
+        ]);
+
+        $dir = sys_get_temp_dir().'/crxfarm-import-'.uniqid();
+        File::ensureDirectoryExists($dir);
+        $jsonl = $dir.'/listings.jsonl';
+
+        try {
+            File::put($jsonl, json_encode([
+                'id' => 'vid-1',
+                'title' => 'CRX Sunroof Panels',
+                'priceText' => '$450',
+                'images' => ['https://scontent-fra5-2.xx.fbcdn.net/v/t39.30808-6/clip.mp4?oh=x'],
+            ])."\n");
+
+            $this->artisan('import:marketplace', ['--path' => $jsonl])->assertSuccessful();
+        } finally {
+            File::deleteDirectory($dir);
+        }
+
+        $listing = Listing::query()->where('source_marketplace_id', 'vid-1')->first();
+        $this->assertNotNull($listing);
+        // The video was not stored as a broken image.
+        $this->assertSame(0, $listing->images()->count());
+        $this->assertSame(0, Storage::disk('public')->allFiles('listings') === [] ? 0 : count(Storage::disk('public')->allFiles('listings')));
     }
 }

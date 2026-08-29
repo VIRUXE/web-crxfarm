@@ -67,7 +67,7 @@ class ImportMarketplace extends Command
             $sourceId = (string) $row['id'];
             $title = ($row['title'] ?? '') !== '' ? (string) $row['title'] : 'Untitled listing';
 
-            $classified = ListingClassifier::classify($title, $row['description'] ?? null);
+            $classified = ListingClassifier::classify($title, $row['description'] ?? null, $row['price'] ?? null);
 
             if ($hondaOnly && ! $classified['honda']) {
                 $skipped++;
@@ -82,8 +82,8 @@ class ImportMarketplace extends Command
                 'type' => $classified['type'],
                 'title' => $title,
                 'chassis' => $isCar ? ($classified['chassis'][0] ?? null) : null,
-                'category' => $classified['category'],
-                'price' => $row['price'] ?? null,
+                'category' => $isCar ? null : $classified['category'],
+                'price' => $classified['clean_price'],
                 'description' => $row['description'] ?? null,
                 // Location is intentionally dropped: every listing is the
                 // seller's home area, so it carries no signal for the catalog.
@@ -347,8 +347,16 @@ class ImportMarketplace extends Command
             return null;
         }
 
-        // process() trims borders, stamps the CRXFARM watermark, and converts
-        // to WebP, so every downloaded photo is stored watermarked.
+        // Facebook listing galleries can include videos, and their URLs return
+        // MP4 bytes. Only store real raster images; otherwise process() would
+        // fall back to saving the raw (non-image) bytes as a broken .webp.
+        $info = @getimagesizefromstring($bytes);
+        if ($info === false || ! str_starts_with((string) ($info['mime'] ?? ''), 'image/')) {
+            return null;
+        }
+
+        // process() trims borders, downscales, stamps the CRXFARM watermark,
+        // and converts to WebP, so every stored photo is web-sized and marked.
         $path = $this->storagePath($sourceId, $image['seq'], 'webp');
         Storage::disk('public')->put($path, ImageTrimmer::process($bytes));
 
