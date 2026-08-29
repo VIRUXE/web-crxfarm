@@ -12,13 +12,28 @@ use Illuminate\Validation\ValidationException;
 class AdminAuthController extends Controller
 {
     /**
-     * Passkey-primary login screen. The passkey ceremony itself talks
-     * directly to laravel/passkeys' own routes via JS
-     * (public/js/passkey-onboarding.js); this view also offers a
-     * "use your PIN instead" fallback form posting to pinLogin().
+     * Passkey-primary login screen, living at /admin itself (not a
+     * separate /admin/login path) — it doubles as the admin entry point.
+     * Not gated by the 'guest' middleware, because an already-authenticated
+     * visit to /admin needs to fall through to the right place instead of
+     * bouncing to the framework's generic "already logged in" default
+     * (which would land on the public catalog homepage, not the dashboard):
+     * an active admin goes straight to the listings dashboard, one still
+     * mid-onboarding goes back to mandatory passkey enrollment, and only an
+     * actual guest sees the login form.
+     *
+     * The passkey ceremony itself talks directly to laravel/passkeys' own
+     * routes via JS (public/js/passkey-onboarding.js); this view also
+     * offers a "use your PIN instead" fallback form posting to pinLogin().
      */
     public function create()
     {
+        if (Auth::check()) {
+            return Auth::user()->isActive()
+                ? redirect()->route('admin.listings.index')
+                : redirect()->route('onboarding.passkey.create');
+        }
+
         return view('admin.login');
     }
 

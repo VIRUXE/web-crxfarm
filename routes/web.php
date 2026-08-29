@@ -11,7 +11,10 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', [CatalogController::class, 'index'])->name('catalog.index');
 Route::get('/listing/{listing}', [CatalogController::class, 'show'])->name('catalog.show');
 
-Route::get('/admin/login', [AdminAuthController::class, 'create'])->name('admin.login')->middleware('guest');
+// No 'guest' middleware here on purpose — AdminAuthController@create itself
+// branches on auth state, so /admin works as both the login screen and the
+// admin entry point (see the controller for why).
+Route::get('/admin', [AdminAuthController::class, 'create'])->name('admin.login');
 Route::post('/admin/login/pin', [AdminAuthController::class, 'pinLogin'])
     ->middleware(['guest', 'throttle:5,15'])
     ->name('admin.login.pin');
