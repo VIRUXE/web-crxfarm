@@ -35,6 +35,18 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Identifier shown beneath the display name in authenticator / password
+     * manager UIs during a passkey ceremony. The package trait falls back to
+     * email-then-primary-key, but this app has no email column, so without
+     * this override it would surface the raw user id (e.g. "6"). Use the
+     * human-readable username instead.
+     */
+    public function getPasskeyUsername(): string
+    {
+        return $this->username;
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
