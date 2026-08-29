@@ -10,7 +10,8 @@ use App\Http\Controllers\CatalogController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [CatalogController::class, 'index'])->name('catalog.index');
-Route::get('/listing/{listing}', [CatalogController::class, 'show'])->name('catalog.show');
+Route::get('/sitemap.xml', [CatalogController::class, 'sitemap'])->name('sitemap');
+Route::get('/listing/{listing}/{slug?}', [CatalogController::class, 'show'])->name('catalog.show');
 
 // No 'guest' middleware here on purpose - AdminAuthController@create itself
 // branches on auth state, so /admin works as both the login screen and the

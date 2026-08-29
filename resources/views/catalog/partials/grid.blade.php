@@ -7,7 +7,7 @@
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         @foreach($listings as $listing)
             <div class="relative">
-            <a class="group flex h-full overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 transition duration-200 hover:-translate-y-1 hover:shadow-xl hover:ring-brand/30" href="{{ route('catalog.show', $listing) }}">
+            <a class="group flex h-full overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-zinc-200 transition duration-200 hover:-translate-y-1 hover:shadow-xl hover:ring-brand/30" href="{{ $listing->url() }}">
                 <article class="flex w-full flex-col">
                 <figure class="flex aspect-4/3 items-center justify-center overflow-hidden bg-zinc-100">
                     @if($listing->featuredImage())

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ListingType;
 use App\Enums\PartCategory;
+use App\Support\DescriptionCleaner;
 use App\Support\TitleNormalizer;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Listing extends Model
 {
@@ -130,6 +132,47 @@ class Listing extends Model
     public function compatibleChassis(): BelongsToMany
     {
         return $this->belongsToMany(Chassis::class, 'listing_chassis');
+    }
+
+    /**
+     * URL-safe slug for search-engine-friendly URLs.
+     */
+    public function slug(): string
+    {
+        return Str::slug((string) $this->title) ?: 'item';
+    }
+
+    /**
+     * Canonical full URL for this listing.
+     */
+    public function url(): string
+    {
+        $key = $this->getKey() ?? $this->id ?? 1;
+
+        return route('catalog.show', ['listing' => $key, 'slug' => $this->slug()]);
+    }
+
+    public function brandName(): string
+    {
+        return DescriptionCleaner::brandName((string) $this->title);
+    }
+
+    public function seoMetaDescription(): string
+    {
+        return DescriptionCleaner::seoMetaDescription($this);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function schemaJsonLd(): array
+    {
+        return DescriptionCleaner::schemaJsonLd($this);
+    }
+
+    public function cleanedDescription(): ?string
+    {
+        return DescriptionCleaner::clean($this->description);
     }
 
     /**

@@ -6,7 +6,9 @@ use App\Enums\PartCategory;
 use App\Models\Chassis;
 use App\Models\Listing;
 use App\Support\OgImageGenerator;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
@@ -61,25 +63,21 @@ class CatalogController extends Controller
         return view($view, compact('listings', 'chassisOptions', 'categories', 'boltPatternOptions'));
     }
 
-    public function show(Listing $listing): View
+    public function show(Listing $listing, ?string $slug = null): View|RedirectResponse
     {
+        if ($slug !== null && $slug !== $listing->slug()) {
+            return redirect()->route('catalog.show', [$listing, $listing->slug()], 301);
+        }
+
         $listing->load(['images', 'compatibleChassis', 'thumbnailImage']);
-
-        $descriptionParts = array_filter([
-            $listing->isCar() ? 'Donor car' : 'Used Honda part',
-            $listing->chassisLabel() !== '' ? 'fits '.$listing->chassisLabel() : null,
-            (float) $listing->price > 0 ? '$'.rtrim(rtrim(number_format((float) $listing->price, 2), '0'), '.') : null,
-        ]);
-
-        $metaDescription = Str::of((string) $listing->description)->squish()->limit(120)->toString()
-            ?: implode(' · ', $descriptionParts).' - CRX Farm, Rossville, Kansas. Message Jeremiah to ask about this listing.';
 
         $featuredImage = $listing->featuredImage();
 
         return view('catalog.show', [
             'listing' => $listing,
             'title' => $listing->title.' | CRX Farm',
-            'metaDescription' => $metaDescription,
+            'metaDescription' => $listing->seoMetaDescription(),
+            'canonicalUrl' => $listing->url(),
             'ogImage' => $featuredImage?->og_url,
             // og_path is only set once an image has been through the OG
             // generator, so only claim the 1.91:1 dimensions when we know
@@ -87,7 +85,25 @@ class CatalogController extends Controller
             // fall back to the raw photo, whatever shape it is).
             'ogImageWidth' => $featuredImage?->og_path ? OgImageGenerator::WIDTH : null,
             'ogImageHeight' => $featuredImage?->og_path ? OgImageGenerator::HEIGHT : null,
-            'ogType' => 'product',
+            'ogType' => $listing->isCar() ? 'vehicle' : 'product',
+            'schemaJsonLd' => $listing->schemaJsonLd(),
+        ]);
+    }
+
+    public function sitemap(): Response
+    {
+        $listings = Listing::query()
+            ->where('status', 'available')
+            ->latest('updated_at')
+            ->get();
+
+        $categories = PartCategory::cases();
+        $chassisList = Listing::chassisSuggestions();
+
+        $content = view('catalog.sitemap', compact('listings', 'categories', 'chassisList'))->render();
+
+        return response($content, 200, [
+            'Content-Type' => 'application/xml; charset=utf-8',
         ]);
     }
 }

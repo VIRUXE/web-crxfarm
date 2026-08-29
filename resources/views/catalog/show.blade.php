@@ -1,10 +1,25 @@
 @extends('layouts.app')
+
+@push('head')
+    <script type="application/ld+json">
+        {!! json_encode($schemaJsonLd, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) !!}
+    </script>
+@endpush
+
 @section('content')
-    <div class="mb-5 flex items-center justify-between gap-3">
-        <a class="inline-flex items-center gap-1.5 text-sm font-semibold text-zinc-600 transition hover:text-brand" href="{{ route('catalog.index') }}">
-            <x-lucide-arrow-left class="size-4" />
-            Back to inventory
-        </a>
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <nav class="flex items-center gap-1.5 text-xs text-zinc-500 min-w-0" aria-label="Breadcrumb">
+            <a href="{{ route('catalog.index') }}" class="hover:text-brand transition shrink-0">Inventory</a>
+            <x-lucide-chevron-right class="size-3.5 text-zinc-400 shrink-0" />
+            @if($listing->category)
+                <a href="{{ route('catalog.index', ['category' => $listing->category->value]) }}" class="hover:text-brand transition shrink-0">{{ $listing->category->label() }}</a>
+                <x-lucide-chevron-right class="size-3.5 text-zinc-400 shrink-0" />
+            @elseif($listing->chassisLabel())
+                <a href="{{ route('catalog.index', ['chassis' => $listing->isCar() ? $listing->chassis : $listing->compatibleChassis->first()?->name]) }}" class="hover:text-brand transition shrink-0">{{ $listing->chassisLabel() }}</a>
+                <x-lucide-chevron-right class="size-3.5 text-zinc-400 shrink-0" />
+            @endif
+            <span class="truncate font-medium text-zinc-800" aria-current="page">{{ $listing->title }}</span>
+        </nav>
         @if(auth()->user()?->isActive())
             <a class="inline-flex items-center gap-1.5 rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-bold tracking-wide text-white uppercase shadow-sm transition hover:bg-zinc-700 focus:ring-2 focus:ring-zinc-400 focus:outline-none" href="{{ route('admin.listings.edit', $listing) }}">
                 <x-lucide-pencil class="size-3.5" />
@@ -72,8 +87,43 @@
                 @if($listing->chassisLabel())<p class="text-sm font-bold tracking-[0.14em] text-brand uppercase">{{ $listing->chassisLabel() }}</p>@endif
                 <p class="text-3xl font-black text-zinc-900">{{ $listing->price ?: 'Ask for price' }}</p>
                 @if($listing->description)
-                    <p class="leading-7 text-zinc-700">{{ $listing->description }}</p>
+                    <div class="whitespace-pre-line leading-7 text-zinc-700 text-sm sm:text-base">{{ $listing->description }}</div>
                 @endif
+
+                <div class="mt-2 rounded-md bg-zinc-50 p-4 ring-1 ring-zinc-200">
+                    <h2 class="text-xs font-bold tracking-wider text-zinc-900 uppercase mb-3 flex items-center gap-1.5">
+                        <x-lucide-info class="size-3.5 text-brand" />
+                        Fitment & Specifications
+                    </h2>
+                    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                        <div>
+                            <dt class="text-zinc-500 font-medium">Type</dt>
+                            <dd class="font-semibold text-zinc-900">{{ $listing->isCar() ? 'Complete Donor Car / Shell' : 'Used Honda Part' }}</dd>
+                        </div>
+                        @if($listing->chassisLabel())
+                            <div>
+                                <dt class="text-zinc-500 font-medium">Compatible Chassis</dt>
+                                <dd class="font-semibold text-brand">{{ $listing->chassisLabel() }}</dd>
+                            </div>
+                        @endif
+                        @if($listing->category)
+                            <div>
+                                <dt class="text-zinc-500 font-medium">Category</dt>
+                                <dd class="font-semibold text-zinc-900">{{ $listing->category->label() }}</dd>
+                            </div>
+                        @endif
+                        @if($listing->bolt_pattern)
+                            <div>
+                                <dt class="text-zinc-500 font-medium">Bolt Pattern</dt>
+                                <dd class="font-semibold text-amber-800">{{ $listing->bolt_pattern }}</dd>
+                            </div>
+                        @endif
+                        <div>
+                            <dt class="text-zinc-500 font-medium">Condition</dt>
+                            <dd class="font-semibold text-zinc-900">Used OEM / Inspected</dd>
+                        </div>
+                    </dl>
+                </div>
 
                 @if($listing->isCar() && count($listing->missingPartsList()) > 0)
                     <hr class="border-zinc-200">

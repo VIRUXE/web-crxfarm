@@ -15,7 +15,7 @@
     $ogImageWidth = $ogImageWidth ?? ($usingDefaultOgImage ? 1200 : null);
     $ogImageHeight = $ogImageHeight ?? ($usingDefaultOgImage ? 630 : null);
     $ogType = $ogType ?? 'website';
-    $canonicalUrl = url()->current();
+    $canonicalUrl = $canonicalUrl ?? url()->current();
 @endphp
     <title>{{ $metaTitle }}</title>
     <meta name="description" content="{{ $metaDescription }}">
@@ -44,6 +44,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('images/favicon-16.png') }}?v={{ filemtime(public_path('images/favicon-16.png')) }}">
     <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('images/apple-touch-icon.png') }}?v={{ filemtime(public_path('images/apple-touch-icon.png')) }}">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @stack('head')
 </head>
 <body data-base="{{ url('/') }}" class="flex min-h-screen flex-col bg-gray-100 text-gray-900 antialiased" hx-indicator:inherited="#htmx-indicator">
     <div class="h-1 bg-brand"></div>

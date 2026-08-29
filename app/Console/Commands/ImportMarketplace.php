@@ -6,6 +6,7 @@ use App\Enums\ListingType;
 use App\Models\Chassis;
 use App\Models\Listing;
 use App\Models\ListingImage;
+use App\Support\DescriptionCleaner;
 use App\Support\ImageTrimmer;
 use App\Support\ListingClassifier;
 use App\Support\TitleNormalizer;
@@ -87,7 +88,7 @@ class ImportMarketplace extends Command
                 'category' => $isCar ? null : $classified['category'],
                 'bolt_pattern' => $isCar ? null : ($classified['bolt_pattern'] ?? null),
                 'price' => $classified['clean_price'],
-                'description' => $row['description'] ?? null,
+                'description' => DescriptionCleaner::clean($row['description'] ?? null),
                 // Location is intentionally dropped: every listing is the
                 // seller's home area, so it carries no signal for the catalog.
                 'location' => null,
