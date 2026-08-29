@@ -54,11 +54,37 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+const BOLT_PATTERN_CHASSIS = {
+    '4x100': ['Civic Wagon', 'CRX', 'EF', 'EG', 'EG Hatch', 'EG/EK', 'EK', 'Del Sol'],
+    '4x114.3': ['Accord', 'Prelude'],
+    '5x114.3': ['DA Integra', 'DC2 Integra', 'Integra', 'EM1', 'RSX', 'CR-V', 'S2000', 'Element', 'Odyssey'],
+    '5x120': [],
+};
+BOLT_PATTERN_CHASSIS['4x100, 4x114.3'] = [
+    ...BOLT_PATTERN_CHASSIS['4x100'],
+    ...BOLT_PATTERN_CHASSIS['4x114.3'],
+];
+
+window.applyBoltPatternChassis = function (form, pattern) {
+    if (!form) return;
+
+    const matchingNames = BOLT_PATTERN_CHASSIS[pattern] || [];
+    if (!matchingNames.length) return;
+
+    form.querySelectorAll('#chassis-part-section input[name="chassis_ids[]"]').forEach((checkbox) => {
+        if (matchingNames.includes(checkbox.dataset.chassisName)) {
+            checkbox.checked = true;
+        }
+    });
+};
+
 window.updateListingTypeFields = function (form) {
     if (!form) return;
 
     const checked = form.querySelector('input[name="type"]:checked');
     const type = checked ? checked.value : null;
+    const categorySelect = form.querySelector('#category-select');
+    const isWheelsCategory = categorySelect ? categorySelect.value === 'wheels_tires' : false;
     const categorySection = form.querySelector('#category-section');
     const boltPatternSection = form.querySelector('#bolt-pattern-section');
     const missingPartsSection = form.querySelector('#missing-parts-section');
@@ -66,7 +92,7 @@ window.updateListingTypeFields = function (form) {
     const chassisPartSection = form.querySelector('#chassis-part-section');
 
     if (categorySection) categorySection.classList.toggle('hidden', type === 'car');
-    if (boltPatternSection) boltPatternSection.classList.toggle('hidden', type === 'car');
+    if (boltPatternSection) boltPatternSection.classList.toggle('hidden', type === 'car' || !isWheelsCategory);
     if (missingPartsSection) missingPartsSection.classList.toggle('hidden', type === 'part');
     if (chassisCarSection) chassisCarSection.classList.toggle('hidden', type === 'part');
     if (chassisPartSection) chassisPartSection.classList.toggle('hidden', type === 'car');

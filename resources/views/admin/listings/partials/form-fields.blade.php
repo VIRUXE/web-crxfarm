@@ -86,7 +86,7 @@
     <div class="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
       @foreach($chassisOptions as $chassisOption)
         <label class="flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-600 shadow-xs transition hover:border-zinc-400 has-checked:border-brand has-checked:bg-brand/5 has-checked:text-brand-dark">
-          <input type="checkbox" name="chassis_ids[]" value="{{ $chassisOption->id }}" @checked(in_array($chassisOption->id, $selectedChassisIds))>
+          <input type="checkbox" name="chassis_ids[]" value="{{ $chassisOption->id }}" data-chassis-name="{{ $chassisOption->name }}" @checked(in_array($chassisOption->id, $selectedChassisIds))>
           {{ $chassisOption->name }}
         </label>
       @endforeach
@@ -101,7 +101,7 @@
 
   <fieldset class="flex flex-col gap-1.5" id="category-section">
     <legend class="mb-1.5 text-sm font-bold text-zinc-800">Category</legend>
-    <select class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-zinc-900 shadow-xs outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15" name="category">
+    <select class="w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-zinc-900 shadow-xs outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/15" name="category" id="category-select" onchange="window.updateListingTypeFields(this.form)">
       <option value="">No category / Not applicable</option>
       @foreach(\App\Enums\PartCategory::cases() as $category)
         <option value="{{ $category->value }}" @selected(old('category', $listing->category?->value ?? $listing->category) === $category->value)>{{ $category->label() }}</option>
@@ -131,7 +131,7 @@
       @foreach(['4x100', '4x114.3', '5x114.3', '5x120', '4x100, 4x114.3'] as $quickPattern)
         <button type="button"
           class="inline-flex cursor-pointer items-center rounded-sm bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-200 transition"
-          onclick="document.getElementById('bolt-pattern-input').value='{{ $quickPattern }}'">
+          onclick="document.getElementById('bolt-pattern-input').value='{{ $quickPattern }}'; window.applyBoltPatternChassis(this.form, '{{ $quickPattern }}')">
           {{ $quickPattern }}
         </button>
       @endforeach
