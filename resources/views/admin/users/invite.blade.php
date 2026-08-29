@@ -4,10 +4,12 @@
 
   @if(session('invite_link'))
     <p class="status-msg">
-      Invite created for {{ session('invited_email') }}. Mail isn't configured yet
-      (it just goes to the server log), so send this link directly:<br>
+      Invite created for <strong>{{ session('invited_username') }}</strong>. There's no email or
+      any other delivery — copy this link and hand it to them directly (text, in person,
+      however):<br>
       <code style="word-break:break-all">{{ session('invite_link') }}</code>
-      — expires in 48 hours, one-time use.
+      — expires in 48 hours, one-time use. They'll set a PIN, then a passkey is required
+      before the account is active.
     </p>
   @endif
 
@@ -20,9 +22,9 @@
       <input type="text" name="name" required autofocus>
     </div>
     <div>
-      <label>Email</label>
-      <input type="email" name="email" required>
+      <label>Username</label>
+      <input type="text" name="username" pattern="[A-Za-z0-9_-]+" required>
     </div>
-    <button class="btn" type="submit">Send invite</button>
+    <button class="btn" type="submit">Create invite link</button>
   </form>
 @endsection

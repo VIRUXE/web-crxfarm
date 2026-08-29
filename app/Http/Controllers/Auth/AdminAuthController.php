@@ -35,15 +35,15 @@ class AdminAuthController extends Controller
     public function pinLogin(Request $request)
     {
         $credentials = $request->validate([
-            'email' => ['required', 'email'],
+            'username' => ['required', 'string'],
             'pin' => ['required', 'digits:6'],
         ]);
 
-        $user = User::where('email', $credentials['email'])->first();
+        $user = User::where('username', $credentials['username'])->first();
 
         if (! $user || ! $user->pin_hash || ! Hash::check($credentials['pin'], $user->pin_hash)) {
             throw ValidationException::withMessages([
-                'email' => 'Invalid email or PIN.',
+                'username' => 'Invalid username or PIN.',
             ]);
         }
 

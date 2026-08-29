@@ -12,7 +12,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Passkeys\Contracts\PasskeyUser;
 use Laravel\Passkeys\PasskeyAuthenticatable;
 
-#[Fillable(['name', 'email', 'password', 'is_admin', 'status', 'pin_hash', 'pin_set_at', 'passkey_enrolled_at'])]
+#[Fillable(['name', 'username', 'is_admin', 'status', 'pin_hash', 'pin_set_at', 'passkey_enrolled_at'])]
 #[Hidden(['password', 'pin_hash', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -42,7 +42,6 @@ class User extends Authenticatable implements PasskeyUser
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'pin_hash' => 'hashed',
             'pin_set_at' => 'datetime',

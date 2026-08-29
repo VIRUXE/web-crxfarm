@@ -3,10 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Mail\UserInvited;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 
 class UserInviteController extends Controller
@@ -16,16 +14,22 @@ class UserInviteController extends Controller
         return view('admin.users.invite');
     }
 
+    /**
+     * No email is ever sent — this app is PIN + passkey only, with no
+     * delivery channel at all. The admin creating the account gets the
+     * one-time signed link on screen and hands it to the new user however
+     * they like (in person, text, whatever) — out of band, by design.
+     */
     public function store(Request $request)
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'username' => ['required', 'alpha_dash', 'max:255', 'unique:users,username'],
         ]);
 
         $user = User::create([
             'name' => $data['name'],
-            'email' => $data['email'],
+            'username' => $data['username'],
             'is_admin' => true,
             'status' => User::STATUS_INVITED,
         ]);
@@ -36,16 +40,9 @@ class UserInviteController extends Controller
             ['user' => $user->id],
         );
 
-        // MAIL_MAILER is currently 'log' (no real transactional email set up
-        // yet) — the message still gets built/sent as a real Mailable so it
-        // works unmodified once real mail is configured, but for now the
-        // inviting admin also gets the link directly so onboarding isn't
-        // blocked on checking storage/logs/laravel.log.
-        Mail::to($user->email)->send(new UserInvited($user, $signedUrl));
-
         return redirect()
             ->route('admin.users.invite.create')
             ->with('invite_link', $signedUrl)
-            ->with('invited_email', $user->email);
+            ->with('invited_username', $user->username);
     }
 }

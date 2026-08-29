@@ -15,14 +15,14 @@ class AdminUserSeeder extends Seeder
      * actual browser flow at /onboarding/passkey after logging in with this
      * PIN via the "use your PIN instead" link on /admin/login. Until that's
      * done, login is still blocked (status != active), matching production
-     * behavior — this just skips having to email/copy a magic link locally.
+     * behavior — this just skips having to copy a magic link locally.
      */
     public function run(): void
     {
-        $pin = env('ADMIN_SEED_PIN', '123456');
+        $pin = config('crxfarm.admin_seed_pin');
 
         User::updateOrCreate(
-            ['email' => 'jeremiah@crxfarm.local'],
+            ['username' => 'jeremiah'],
             [
                 'name' => 'Jeremiah',
                 'is_admin' => true,

@@ -11,8 +11,8 @@
     @csrf
     @if($errors->any())<p class="status-msg" style="background:#f3dede;border-color:#b5502e">{{ $errors->first() }}</p>@endif
     <div>
-      <label>Email</label>
-      <input type="email" name="email" required>
+      <label>Username</label>
+      <input type="text" name="username" required>
     </div>
     <div>
       <label>PIN</label>
