@@ -11,11 +11,14 @@ use App\Support\ListingClassifier;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 class ImportMarketplace extends Command
 {
+    private const IMAGE_USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
     protected $signature = 'import:marketplace
         {--path= : Path to listings.jsonl or a scrape SQLite file}
         {--images= : Directory of image files named {marketplace-id}.jpg}
@@ -108,6 +111,14 @@ class ImportMarketplace extends Command
 
             foreach ($row['images'] as $image) {
                 $seq = (int) $image['seq'];
+
+                // Remote photos are the slow part; once downloaded, leave them
+                // be unless --force, so re-imports (as new scrapes land) skip
+                // what is already stored.
+                if (($image['url'] ?? null) !== null && ! $this->option('force') && $existingBySeq->has($seq)) {
+                    continue;
+                }
+
                 $pathOnDisk = $this->storeImage($sourceId, $image, is_dir($imagesDir) ? $imagesDir : null);
 
                 if ($pathOnDisk === null) {
@@ -169,7 +180,7 @@ class ImportMarketplace extends Command
     }
 
     /**
-     * @return list<array{id: string, title: ?string, price: ?string, description: ?string, location: ?string, images: list<array{seq: int, mime_type: ?string, data: ?string}>}>
+     * @return list<array{id: string, title: ?string, price: ?string, description: ?string, location: ?string, images: list<array{seq: int, mime_type: ?string, data: ?string, url?: ?string}>}>
      */
     private function listingsFromJsonl(string $path): array
     {
@@ -212,9 +223,10 @@ class ImportMarketplace extends Command
                 'price' => $price !== null ? (string) $price : null,
                 'description' => isset($decoded['description']) ? (string) $decoded['description'] : null,
                 'location' => $location,
-                'images' => [
-                    ['seq' => 0, 'mime_type' => null, 'data' => null],
-                ],
+                // Fall back to a single placeholder so the --images directory
+                // lookup still works for scrapes that carry no photo URLs.
+                'images' => $this->imageUrlsFrom($decoded['images'] ?? null)
+                    ?: [['seq' => 0, 'mime_type' => null, 'data' => null, 'url' => null]],
             ];
         }
 
@@ -222,7 +234,7 @@ class ImportMarketplace extends Command
     }
 
     /**
-     * @return list<array{id: string, title: ?string, price: ?string, description: ?string, location: ?string, images: list<array{seq: int, mime_type: ?string, data: ?string}>}>
+     * @return list<array{id: string, title: ?string, price: ?string, description: ?string, location: ?string, images: list<array{seq: int, mime_type: ?string, data: ?string, url?: ?string}>}>
      */
     private function listingsFromSqlite(string $path): array
     {
@@ -258,6 +270,7 @@ class ImportMarketplace extends Command
                         'seq' => (int) $image->seq,
                         'mime_type' => isset($image->mime_type) ? (string) $image->mime_type : null,
                         'data' => is_string($data) && $data !== '' ? $data : null,
+                        'url' => null,
                     ];
                 }
 
@@ -278,7 +291,7 @@ class ImportMarketplace extends Command
     }
 
     /**
-     * @param  array{seq: int, mime_type: ?string, data: ?string}  $image
+     * @param  array{seq: int, mime_type: ?string, data: ?string, url?: ?string}  $image
      */
     private function storeImage(string $sourceId, array $image, ?string $imagesDir): ?string
     {
@@ -287,6 +300,10 @@ class ImportMarketplace extends Command
             Storage::disk('public')->put($path, ImageTrimmer::trim($image['data']));
 
             return $path;
+        }
+
+        if (($image['url'] ?? null) !== null) {
+            return $this->storeRemoteImage($sourceId, $image);
         }
 
         $fromFile = $imagesDir !== null
@@ -302,6 +319,71 @@ class ImportMarketplace extends Command
         Storage::disk('public')->put($path, ImageTrimmer::trim(File::get($fromFile)));
 
         return $path;
+    }
+
+    /**
+     * @param  array{seq: int, mime_type: ?string, data: ?string, url?: ?string}  $image
+     */
+    private function storeRemoteImage(string $sourceId, array $image): ?string
+    {
+        $url = (string) $image['url'];
+
+        try {
+            $response = Http::withHeaders(['User-Agent' => self::IMAGE_USER_AGENT])
+                ->timeout(25)
+                ->retry(2, 500)
+                ->get($url);
+        } catch (Throwable) {
+            return null;
+        }
+
+        if (! $response->successful()) {
+            return null;
+        }
+
+        $bytes = $response->body();
+
+        if ($bytes === '') {
+            return null;
+        }
+
+        // process() trims borders, stamps the CRXFARM watermark, and converts
+        // to WebP, so every downloaded photo is stored watermarked.
+        $path = $this->storagePath($sourceId, $image['seq'], 'webp');
+        Storage::disk('public')->put($path, ImageTrimmer::process($bytes));
+
+        return $path;
+    }
+
+    /**
+     * Keep only real listing photos (Facebook CDN images), dropping UI icons
+     * and avatars, and number them in order.
+     *
+     * @param  mixed  $images
+     * @return list<array{seq: int, mime_type: ?string, data: ?string, url: string}>
+     */
+    private function imageUrlsFrom($images): array
+    {
+        if (! is_array($images)) {
+            return [];
+        }
+
+        $rows = [];
+        $seq = 0;
+        foreach ($images as $url) {
+            if (! is_string($url) || $url === '') {
+                continue;
+            }
+
+            $host = (string) parse_url($url, PHP_URL_HOST);
+            if (! str_contains($host, 'fbcdn.net') || str_starts_with($host, 'static.')) {
+                continue;
+            }
+
+            $rows[] = ['seq' => $seq++, 'mime_type' => null, 'data' => null, 'url' => $url];
+        }
+
+        return $rows;
     }
 
     private function imageFileForListing(string $imagesDir, string $sourceId, int $seq): ?string

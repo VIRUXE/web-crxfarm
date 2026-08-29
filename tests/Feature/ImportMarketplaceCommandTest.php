@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Listing;
 use App\Models\ListingImage;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use PDO;
 use Tests\TestCase;
@@ -233,6 +234,53 @@ class ImportMarketplaceCommandTest extends TestCase
         $this->assertSame('car', $car->type->value);
         $this->assertNull($car->category);
         $this->assertSame('$1,234', $car->price);
+    }
+
+    public function test_import_downloads_remote_photos_and_stores_them_watermarked(): void
+    {
+        Storage::fake('public');
+
+        // A real 200x150 JPEG so GD can decode, trim, watermark, and re-encode.
+        $im = imagecreatetruecolor(200, 150);
+        imagefill($im, 0, 0, imagecolorallocate($im, 90, 90, 90));
+        ob_start();
+        imagejpeg($im);
+        $jpeg = (string) ob_get_clean();
+
+        Http::fake([
+            'scontent-fra5-2.xx.fbcdn.net/*' => Http::response($jpeg, 200, ['Content-Type' => 'image/jpeg']),
+        ]);
+
+        $dir = sys_get_temp_dir().'/crxfarm-import-'.uniqid();
+        File::ensureDirectoryExists($dir);
+        $jsonl = $dir.'/listings.jsonl';
+
+        try {
+            File::put($jsonl, json_encode([
+                'id' => 'img-1',
+                'title' => 'CRX Sunroof Panels',
+                'priceText' => '$450',
+                'images' => [
+                    'https://scontent-fra5-2.xx.fbcdn.net/v/t39.84726-6/a.jpg?oh=x',
+                    'https://scontent-fra5-2.xx.fbcdn.net/v/t45.5328-4/b.jpg?oh=y',
+                    'https://static.xx.fbcdn.net/rsrc.php/icon.webp', // UI icon, must be skipped
+                ],
+            ])."\n");
+
+            $this->artisan('import:marketplace', ['--path' => $jsonl])->assertSuccessful();
+        } finally {
+            File::deleteDirectory($dir);
+        }
+
+        $listing = Listing::query()->where('source_marketplace_id', 'img-1')->first();
+        $this->assertNotNull($listing);
+
+        // Two real photos stored (the static icon was dropped), as WebP.
+        $this->assertSame(2, $listing->images()->count());
+        $first = $listing->images()->where('seq', 0)->value('path');
+        $this->assertSame('listings/img-1-0.webp', $first);
+        Storage::disk('public')->assertExists('listings/img-1-0.webp');
+        $this->assertStringStartsWith('RIFF', Storage::disk('public')->get($first)); // WebP container
     }
 
     public function test_import_adopts_hand_entered_listing_with_matching_title(): void
