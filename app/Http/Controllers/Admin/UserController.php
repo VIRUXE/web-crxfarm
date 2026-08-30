@@ -60,7 +60,7 @@ class UserController extends Controller
             ->contains(fn (User $other) => Hash::check($data['pin'], $other->pin_hash));
 
         if ($collision) {
-            return back()->withErrors(['pin' => "That PIN is already in use by another account — pick a different one."]);
+            return back()->withErrors(['pin' => 'That PIN is already in use by another account — pick a different one.']);
         }
 
         $attributes = [

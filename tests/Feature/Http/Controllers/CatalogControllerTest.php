@@ -4,13 +4,10 @@ namespace Tests\Feature\Http\Controllers;
 
 use App\Enums\PartCategory;
 use App\Models\Listing;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class CatalogControllerTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_search_controls_target_the_canonical_catalog_url(): void
     {
         $response = $this->get('http://localhost/');

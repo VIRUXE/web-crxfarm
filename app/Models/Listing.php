@@ -234,6 +234,107 @@ class Listing extends Model
         return $query->where('category', $value);
     }
 
+    public function scopeCategoryTag($query, PartCategory|string|null $category, ?string $tagKey)
+    {
+        if (! $tagKey || ! $category) {
+            return $query;
+        }
+
+        $catEnum = $category instanceof PartCategory ? $category : PartCategory::tryFrom((string) $category);
+        if (! $catEnum) {
+            return $query;
+        }
+
+        $tags = $catEnum->tags();
+        if (! isset($tags[$tagKey])) {
+            return $query;
+        }
+
+        $keywords = $tags[$tagKey]['keywords'] ?? [];
+        if (empty($keywords)) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($keywords) {
+            foreach ($keywords as $kw) {
+                $q->orWhere('title', 'like', "%{$kw}%");
+            }
+        });
+    }
+
+    /**
+     * Resolve all matching category or vehicle style tags for this listing.
+     *
+     * @return array<string, string> Map of tag_key => tag_label
+     */
+    public function tags(): array
+    {
+        $matches = [];
+        $text = trim($this->title.' '.($this->description ?? ''));
+
+        if ($this->isPart() && $this->category) {
+            $catTags = $this->category->tags();
+            foreach ($catTags as $key => $data) {
+                foreach ($data['keywords'] as $kw) {
+                    if (stripos($text, $kw) !== false) {
+                        $matches[$key] = $data['label'];
+                        break;
+                    }
+                }
+            }
+        } elseif ($this->isCar()) {
+            $carTags = self::carTags();
+            foreach ($carTags as $key => $data) {
+                foreach ($data['keywords'] as $kw) {
+                    if (stripos($this->title, $kw) !== false) {
+                        $matches[$key] = $data['label'];
+                        break;
+                    }
+                }
+            }
+        }
+
+        return $matches;
+    }
+
+    /**
+     * @return array<string, array{label: string, keywords: list<string>}>
+     */
+    public static function carTags(): array
+    {
+        return [
+            'hatchbacks' => ['label' => 'Hatchbacks', 'keywords' => ['hatch', 'hatchback', '3d', '2d hatch']],
+            'coupes' => ['label' => 'Coupes', 'keywords' => ['coupe', '2d coupe']],
+            'sedans' => ['label' => 'Sedans', 'keywords' => ['sedan', '4d', '4 door']],
+            'wagons' => ['label' => 'Wagons', 'keywords' => ['wagon', 'wagovan']],
+            'shells_rollers' => ['label' => 'Shells & Rollers', 'keywords' => ['shell', 'roller', 'racing shell']],
+            'part_outs' => ['label' => 'Part-Outs', 'keywords' => ['part out', 'parting out', 'parts car', 'for parts']],
+        ];
+    }
+
+    public function scopeCarTag($query, ?string $tagKey)
+    {
+        if (! $tagKey) {
+            return $query;
+        }
+
+        $tags = self::carTags();
+        if (! isset($tags[$tagKey])) {
+            return $query;
+        }
+
+        $keywords = $tags[$tagKey]['keywords'] ?? [];
+        if (empty($keywords)) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($keywords) {
+            foreach ($keywords as $kw) {
+                $q->orWhere('title', 'like', "%{$kw}%");
+            }
+        });
+    }
+
     public function scopeType($query, ListingType|string|null $type)
     {
         if (! $type) {

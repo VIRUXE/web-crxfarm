@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ListingType;
 use App\Enums\PartCategory;
 use App\Models\Chassis;
 use App\Models\Listing;
@@ -9,18 +10,24 @@ use App\Support\OgImageGenerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class CatalogController extends Controller
 {
     public function index(Request $request): View
     {
+        $selectedCategory = $request->query('category') ? PartCategory::tryFrom((string) $request->query('category')) : null;
+        $selectedType = $request->query('type') ? ListingType::tryFrom((string) $request->query('type')) : null;
+        $selectedTag = $request->query('tag');
+
         $listings = Listing::query()
             ->where('status', 'available')
             ->search($request->query('q'))
             ->chassis($request->query('chassis'))
-            ->category($request->query('category'))
+            ->type($selectedType)
+            ->category($selectedCategory)
+            ->categoryTag($selectedCategory, $selectedTag)
+            ->when($selectedType === ListingType::Car, fn ($q) => $q->carTag($selectedTag))
             ->boltPattern($request->query('bolt_pattern'))
             ->with(['images' => fn ($q) => $q->limit(1), 'thumbnailImage', 'compatibleChassis'])
             ->latest()
@@ -40,6 +47,9 @@ class CatalogController extends Controller
             ->values();
 
         $categories = PartCategory::cases();
+        $categoryTags = $selectedCategory
+            ? $selectedCategory->tags()
+            : ($selectedType === ListingType::Car ? Listing::carTags() : []);
 
         $availablePatterns = Listing::query()
             ->whereNotNull('bolt_pattern')
@@ -60,7 +70,7 @@ class CatalogController extends Controller
             ? 'catalog.partials.grid'
             : 'catalog.index';
 
-        return view($view, compact('listings', 'chassisOptions', 'categories', 'boltPatternOptions'));
+        return view($view, compact('listings', 'chassisOptions', 'categories', 'categoryTags', 'selectedCategory', 'selectedType', 'boltPatternOptions'));
     }
 
     public function show(Listing $listing, ?string $slug = null): View|RedirectResponse

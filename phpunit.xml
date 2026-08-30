@@ -34,5 +34,7 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Tests run as root; compiling into the live views dir 500s php-fpm (cannot touch() root-owned files). -->
+        <env name="VIEW_COMPILED_PATH" value="storage/framework/testing/views"/>
     </php>
 </phpunit>

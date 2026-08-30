@@ -44,4 +44,39 @@ class PartCategoryEnumTest extends TestCase
         $this->assertArrayHasKey('interior', $options);
         $this->assertSame('Interior', $options['interior']);
     }
+
+    public function test_tags_returns_curated_tags_for_each_category(): void
+    {
+        $interiorTags = PartCategory::Interior->tags();
+        $this->assertArrayHasKey('seats', $interiorTags);
+        $this->assertSame('Seats & Rails', $interiorTags['seats']['label']);
+        $this->assertContains('seat', $interiorTags['seats']['keywords']);
+
+        $engineTags = PartCategory::EngineDrivetrain->tags();
+        $this->assertArrayHasKey('transmissions', $engineTags);
+        $this->assertArrayHasKey('b_series', $engineTags);
+        $this->assertSame('B-Series', $engineTags['b_series']['label']);
+
+        $allCategories = PartCategory::cases();
+        foreach ($allCategories as $category) {
+            $tags = $category->tags();
+            $this->assertNotEmpty($tags, "Category {$category->value} should have curated tags.");
+            foreach ($tags as $tagKey => $tagData) {
+                $this->assertArrayHasKey('label', $tagData);
+                $this->assertArrayHasKey('keywords', $tagData);
+                $this->assertNotEmpty($tagData['keywords']);
+            }
+        }
+    }
+
+    public function test_tags_for_helper_returns_expected_tags(): void
+    {
+        $tagsFromEnum = PartCategory::tagsFor(PartCategory::Interior);
+        $tagsFromString = PartCategory::tagsFor('interior');
+
+        $this->assertSame($tagsFromEnum, $tagsFromString);
+        $this->assertArrayHasKey('seats', $tagsFromString);
+        $this->assertEmpty(PartCategory::tagsFor(null));
+        $this->assertEmpty(PartCategory::tagsFor('invalid_category'));
+    }
 }

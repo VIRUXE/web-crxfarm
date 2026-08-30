@@ -40,7 +40,7 @@ class ListingClassifier
 
         // Cars carry their single chassis on the model's own column, so the
         // part category and bolt pattern do not apply to them.
-        $category = $type === ListingType::Car ? null : self::detectCategory($text);
+        $category = $type === ListingType::Car ? null : self::detectCategory($title, $text);
         $cleanPrice = self::cleanPrice($price);
         $boltPattern = $type === ListingType::Car ? null : self::detectBoltPattern($text);
 
@@ -109,7 +109,7 @@ class ListingClassifier
         $hasVehicleYear = (bool) preg_match('/\b(19|20)\d{2}\b/', $title);
         $hasBodyStyle = (bool) preg_match('/\b(hatchback|hatch|sedan|coupe|wagon|wagon 4wd|convertible|minivan|sport utility|suv)\b/i', $title);
         $hasVehicleModel = (bool) preg_match('/\b(honda|acura|civic|crx|del ?sol|integra|prelude|accord|element|cr-?v|odyssey|pilot|s2000|rsx|fit)\b/i', $title);
-        $hasSpecificPartWord = (bool) preg_match('/\b(cluster|bumper supports?|door panels?|lips?|rims?|wheels?|hood|lights?|brackets?|intake manifold|header|distributor|garnish|mud flaps?|drums?|seats?|steering wheel|motor for parts|engine parts)\b/i', $title);
+        $hasSpecificPartWord = (bool) preg_match('/\b(cluster|bumper supports?|door panels?|lips?|rims?|wheels?|hood|lights?|taillights?|headlights?|brackets?|intake manifold|header|distributor|garnish|mud flaps?|drums?|seats?|steering wheel|transmissions?|trans|axles?|ecu|exhaust|radiator|shift linkage|motor for parts|engine parts)\b/i', $title);
 
         if ($hasSpecificPartWord) {
             return ListingType::Part;
@@ -176,23 +176,46 @@ class ListingClassifier
             }
         }
 
+        if (empty($found)) {
+            $engineMap = [
+                'DC2 Integra' => '/\b(?:b18[a-c]\d?|b18\b|gsr\b)/i',
+                'DA Integra' => '/\b(?:b18a\d?)\b/i',
+                'CR-V' => '/\b(?:b20[b-z]\d?|b20\b)\b/i',
+                'Prelude' => '/\b(?:h22[a-z]?\d?|h23[a-z]?\d?|f22\b)\b/i',
+                'RSX' => '/\b(?:k20a\d?|k20z1|dc5\b)\b/i',
+            ];
+            foreach ($engineMap as $name => $pattern) {
+                if (preg_match($pattern, $cleanedText)) {
+                    $found[] = $name;
+                }
+            }
+        }
+
         return array_values(array_unique($found));
     }
 
-    private static function detectCategory(string $text): PartCategory
+    private static function detectCategory(string $title, string $text): PartCategory
     {
         // Order matters: a "steering wheel" is interior, not a road wheel; an
         // exhaust header is exhaust, not engine. Specific rules come first.
         $rules = [
-            [PartCategory::Interior, '/steering wheel|shift ?(?:knob|boot)|\bseats?\b|door panel|carpet|center console|\bdash\b|dashboard|floor ?mats?|\bvisor\b|headliner|cargo (?:divider|net)|arm ?rest|\bcluster\b|gauges?/i'],
-            [PartCategory::LightingElectrical, '/3rd brake light|third brake light|head ?lights?|tail ?lights?|corner lights?|brake light|light ?bar|\bleds?\b|\becu\b|harness|wiring|\balarm\b|\bradio\b|stereo|speakers?|tape deck|cd player|antenna|distributor|ignition|alternator|starter/i'],
-            [PartCategory::SuspensionBrakes, '/(?:4ws|4-wheel-steering|steering actuator)|coilovers?|suspension|sway ?bar|torsion|control arm|trailing arm|\bbrakes?\b|caliper|\brotors?\b|steering rack|spindle|knuckle|\bstrut\b|e[ -]?brake cables?|drums?\b|camber kit/i'],
+            [PartCategory::Interior, '/steering wheels?|shift ?(?:knobs?|boots?)|\bseats?\b|door panels?|carpets?|center consoles?|\bdash(?:board)?s?\b|floor ?mats?|\bvisors?\b|headliners?|cargo (?:dividers?|nets?)|arm ?rests?|\bclusters?\b|gauges?|\binteriors?\b/i'],
+            [PartCategory::LightingElectrical, '/3rd brake lights?|third brake lights?|head ?lights?|tail ?lights?|corner lights?|brake lights?|light ?bars?|\bleds?\b|\becus?\b|harness(?:es)?|wiring|\balarms?\b|\bradios?\b|stereos?|speakers?|tape decks?|cd players?|antennas?|distributors?|ignitions?|alternators?|starters?/i'],
+            [PartCategory::SuspensionBrakes, '/(?:4ws|4-wheel-steering|steering actuator)|coilovers?|suspension|sway ?bars?|torsion|control arms?|trailing arms?|\bbrakes?\b|calipers?|\brotors?\b|steering racks?|spindles?|knuckles?|\bstruts?\b|e[ -]?brake cables?|drums?\b|camber kits?/i'],
             [PartCategory::WheelsTires, '/\b(rims?|wheels?|hubcaps?|tires?|4x100|4x114(?:\.3)?|4x113|5x114(?:\.3)?|5x113|5x120|bbs|enke|enkie|konig|\boz\b|rota|\bssr\b|\bwork\b|drag rims?|volk|phone dial|gsr blade|ls mesh|basket weaves?)\b/i'],
-            [PartCategory::ExhaustIntake, '/\bexhaust\b|\bheader\b|down ?pipe|cat ?back|\bmuffler\b|\bintake\b|manifold|throttle body|\bturbo\b/i'],
-            [PartCategory::EngineDrivetrain, '/\bengine\b|\bmotor\b|\bswap\b|\bhmo\b|long ?block|bare ?block|\bhead\b|\bvtec\b|transmission|\btrans\b|gearbox|\blsd\b|\bcrank\b|cam ?(?:shaft|gear)?|\bpulley\b|\bclutch\b|flywheel|\baxles?\b|\baxels?\b|sub ?frame|oil ?(?:pan|pickup)|water pump|timing|\bblock\b|shift linkage/i'],
-            [PartCategory::ExteriorBody, '/\bfenders?\b|\bbumper\b|\bhood\b|spoiler|\bwing\b|mud ?flaps?|nose panel|garnish|body kit|\bdoors?\b|\brocker\b|\btarga\b|sunroof|side skirt|\blips?\b|\bglass\b|windshield|mirrors?|\bgrill\b|badge|molding|valance|wide ?body/i'],
+            [PartCategory::ExhaustIntake, '/\bexhausts?\b|\bheaders?\b|down ?pipes?|cat ?backs?|\bmufflers?\b|\bintakes?\b|manifolds?|throttle bod(?:y|ies)|\bturbos?\b/i'],
+            [PartCategory::EngineDrivetrain, '/\bengines?\b|\bmotors?\b|\bswaps?\b|\bhmo\b|long ?blocks?|bare ?blocks?|\bheads?\b|\bvtec\b|transmissions?|\btrans\b|gearbox(?:es)?|\blsd\b|\bcranks?\b|cam ?(?:shafts?|gears?)?|\bpulleys?|\bclutch(?:es)?|flywheels?|\baxles?\b|\baxels?\b|sub ?frames?|oil ?(?:pans?|pickups?)|water pumps?|timing|\bblocks?\b|shift linkages?/i'],
+            [PartCategory::ExteriorBody, '/\bfenders?\b|\bbumpers?\b|\bhoods?\b|spoilers?|\bwings?\b|mud ?flaps?|nose panels?|garnish(?:es)?|body kits?|\bdoors?\b|\brockers?\b|\btargas?\b|sunroofs?|side skirts?|\blips?\b|\bglass(?:es)?\b|windshields?|mirrors?|\bgrills?\b|\bgrilles?\b|badges?|moldings?|valances?|wide ?bod(?:y|ies)/i'],
         ];
 
+        // 1. Check title first for higher accuracy
+        foreach ($rules as [$category, $pattern]) {
+            if (preg_match($pattern, $title)) {
+                return $category;
+            }
+        }
+
+        // 2. Fallback to full text (title + description)
         foreach ($rules as [$category, $pattern]) {
             if (preg_match($pattern, $text)) {
                 return $category;

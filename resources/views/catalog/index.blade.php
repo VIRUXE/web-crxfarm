@@ -30,20 +30,28 @@
             @endforeach
         </select>
 
+        <input type="hidden" name="type" id="catalog-type-input" value="{{ request('type') }}">
         <input type="hidden" name="category" id="catalog-category-input" value="{{ request('category') }}">
+        <input type="hidden" name="tag" id="catalog-tag-input" value="{{ request('tag') }}">
         <input type="hidden" name="bolt_pattern" id="catalog-bolt-pattern-input" value="{{ request('bolt_pattern') }}">
     </form>
 
     <nav class="mb-4 flex flex-wrap items-center gap-2" aria-label="Filter parts by category">
         <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis')])) }}/"
-           class="inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold tracking-wide transition {{ empty(request('category')) ? 'bg-zinc-950 text-white shadow-xs' : 'bg-white text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 ring-1 ring-zinc-200' }}">
-            All categories
+           class="inline-flex items-center rounded-full px-3.5 py-1.5 text-xs font-bold tracking-wide transition {{ empty(request('category')) && empty(request('type')) ? 'bg-zinc-950 text-white shadow-xs' : 'bg-white text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 ring-1 ring-zinc-200' }}">
+            All inventory
+        </a>
+        <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'type' => 'car'])) }}/"
+           class="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold tracking-wide transition {{ request('type') === 'car' ? 'bg-zinc-950 text-white shadow-xs' : 'bg-white text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 ring-1 ring-zinc-200' }}">
+            <x-lucide-car class="size-3.5 shrink-0" />
+            Donor cars
         </a>
         @foreach($categories as $cat)
             @php
                 $preservePattern = $cat === \App\Enums\PartCategory::WheelsTires ? request('bolt_pattern') : null;
+                $preserveTag = request('category') === $cat->value ? request('tag') : null;
             @endphp
-            <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'bolt_pattern' => $preservePattern, 'category' => $cat->value])) }}/"
+            <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'bolt_pattern' => $preservePattern, 'tag' => $preserveTag, 'category' => $cat->value])) }}/"
                class="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold tracking-wide transition {{ request('category') === $cat->value ? 'bg-zinc-950 text-white shadow-xs' : 'bg-white text-zinc-700 hover:bg-zinc-100 hover:text-zinc-950 ring-1 ring-zinc-200' }}">
                 <x-category-icon :category="$cat->value" class="size-3.5 shrink-0" />
                 {{ $cat->label() }}
@@ -51,15 +59,51 @@
         @endforeach
     </nav>
 
+    @if(request('type') === 'car' && !empty($categoryTags))
+        <div class="mb-4 flex flex-wrap items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 shadow-2xs">
+            <span class="text-xs font-bold text-zinc-700 mr-1 flex items-center gap-1.5 shrink-0">
+                <x-lucide-car class="size-3.5 text-brand" />
+                Donor car styles:
+            </span>
+            <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'type' => 'car'])) }}/"
+               class="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold transition {{ empty(request('tag')) ? 'bg-zinc-900 text-white shadow-xs' : 'bg-white text-zinc-700 hover:bg-zinc-100 ring-1 ring-zinc-200' }}">
+                All donor cars
+            </a>
+            @foreach($categoryTags as $tagKey => $tagData)
+                <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'type' => 'car', 'tag' => $tagKey])) }}/"
+                   class="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold transition {{ request('tag') === $tagKey ? 'bg-brand text-white shadow-xs' : 'bg-white text-zinc-700 hover:bg-zinc-100 ring-1 ring-zinc-200' }}">
+                    {{ $tagData['label'] }}
+                </a>
+            @endforeach
+        </div>
+    @elseif($selectedCategory && !empty($categoryTags))
+        <div class="mb-4 flex flex-wrap items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 shadow-2xs">
+            <span class="text-xs font-bold text-zinc-700 mr-1 flex items-center gap-1.5 shrink-0">
+                <x-lucide-tag class="size-3.5 text-brand" />
+                {{ $selectedCategory->label() }} tags:
+            </span>
+            <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'category' => request('category'), 'bolt_pattern' => request('bolt_pattern')])) }}/"
+               class="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold transition {{ empty(request('tag')) ? 'bg-zinc-900 text-white shadow-xs' : 'bg-white text-zinc-700 hover:bg-zinc-100 ring-1 ring-zinc-200' }}">
+                All {{ $selectedCategory->label() }}
+            </a>
+            @foreach($categoryTags as $tagKey => $tagData)
+                <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'category' => request('category'), 'bolt_pattern' => request('bolt_pattern'), 'tag' => $tagKey])) }}/"
+                   class="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold transition {{ request('tag') === $tagKey ? 'bg-brand text-white shadow-xs' : 'bg-white text-zinc-700 hover:bg-zinc-100 ring-1 ring-zinc-200' }}">
+                    {{ $tagData['label'] }}
+                </a>
+            @endforeach
+        </div>
+    @endif
+
     @if(request('category') === \App\Enums\PartCategory::WheelsTires->value || request('bolt_pattern'))
         <div class="mb-6 flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-200/80 bg-amber-50/50 px-3.5 py-2.5">
             <span class="text-xs font-bold text-amber-900">Stud pattern:</span>
-            <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'category' => request('category')])) }}/"
+            <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'category' => request('category'), 'tag' => request('tag')])) }}/"
                class="inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold transition {{ empty(request('bolt_pattern')) ? 'bg-amber-700 text-white shadow-xs' : 'bg-white text-amber-900 hover:bg-amber-100 ring-1 ring-amber-200' }}">
                 All patterns
             </a>
             @foreach($boltPatternOptions as $pattern)
-                <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'category' => request('category'), 'bolt_pattern' => $pattern])) }}/"
+                <a href="{{ route('catalog.index', array_filter(['q' => request('q'), 'chassis' => request('chassis'), 'category' => request('category'), 'tag' => request('tag'), 'bolt_pattern' => $pattern])) }}/"
                    class="inline-flex items-center rounded-md px-2 py-1 text-xs font-semibold transition {{ request('bolt_pattern') === $pattern ? 'bg-amber-700 text-white shadow-xs' : 'bg-white text-amber-900 hover:bg-amber-100 ring-1 ring-amber-200' }}">
                     {{ $pattern }}
                 </a>
