@@ -120,13 +120,23 @@
                     <a class="text-zinc-400 transition hover:text-brand" href="https://www.facebook.com/profile.php?id=100083512851607" target="_blank" rel="noopener" aria-label="CRX Farm on Facebook">
                         <x-lucide-facebook class="size-5" />
                     </a>
+                    <a class="text-zinc-400 transition hover:text-brand" href="https://github.com/VIRUXE/web-crxfarm" target="_blank" rel="noopener" aria-label="CRX Farm on GitHub" title="View Source on GitHub">
+                        <x-lucide-github class="size-5" />
+                    </a>
                 </div>
             </div>
         </div>
 
-        <div class="mx-auto flex w-full max-w-6xl flex-wrap justify-between gap-2 border-t border-zinc-800 py-5 text-xs text-zinc-500">
+        <div class="mx-auto flex w-full max-w-6xl flex-wrap justify-between items-center gap-2 border-t border-zinc-800 py-5 text-xs text-zinc-500">
             <p>&copy; {{ now()->year }} CRX Farm. All rights reserved.</p>
-            <p>Independent used parts store.</p>
+            <div class="flex items-center gap-3">
+                <a class="inline-flex items-center gap-1.5 text-zinc-400 transition hover:text-zinc-200" href="https://github.com/VIRUXE/web-crxfarm" target="_blank" rel="noopener">
+                    <x-lucide-github class="size-3.5" />
+                    <span>Open Source on GitHub</span>
+                </a>
+                <span>&middot;</span>
+                <p>Independent used parts store.</p>
+            </div>
         </div>
     </footer>
 
