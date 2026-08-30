@@ -1,106 +1,397 @@
 # CRX Farm
 
-A free, open-source parts catalog for [CRX Farm](https://www.facebook.com/jeremiah.freeman.116318) - Jeremiah Freeman's Honda parts yard in Rossville, KS. Built to replace an all-Messenger/Facebook workflow with a real browsable, searchable catalog.
+[![Laravel](https://img.shields.io/badge/Laravel-13.x-FF2D20?style=flat&logo=laravel)](https://laravel.com)
+[![PHP](https://img.shields.io/badge/PHP-8.3%2B-777BB4?style=flat&logo=php)](https://php.net)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06B6D4?style=flat&logo=tailwindcss)](https://tailwindcss.com)
+[![htmx](https://img.shields.io/badge/htmx-2.0%2B-3366CC?style=flat)](https://htmx.org)
+[![WebAuthn](https://img.shields.io/badge/Auth-WebAuthn%20Passkeys-green?style=flat)](https://w3c.github.io/webauthn/)
+[![Open Source](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Stack: **Laravel 13 + htmx + MySQL**, server-rendered Blade (no JS build step, no SPA framework). Deployed as a subpath at `https://flaviopereira.dev/crxfarm`.
+A modern, open-source parts catalog and lead-generation portal built for **[CRX Farm](https://www.facebook.com/profile.php?id=100083512851607)** — Jeremiah Freeman's Honda parts yard in Rossville, Kansas.
 
-## What it does
+CRX Farm replaces a manual Facebook Marketplace / Messenger workflow with a dedicated, searchable, SEO-optimized web inventory. Potential buyers can browse individual parts and complete donor cars, filter by chassis/category/bolt pattern, view high-resolution photo galleries and demo videos, and click directly through to Facebook Messenger for personalized quotes and shipping.
 
-- Public catalog: search + filter by chassis (CRX, EF, EG, Del Sol, EK, Accord, CRV, ...), individually-priced parts and per-donor-car entries (for cars too big to itemize part-by-part - "here's what's already pulled, ask about the rest").
-- Every listing supports unlimited photos.
-- Every listing links out to Messenger ("Ask about this") - pricing/shipping is still quoted by Jeremiah directly, this is a catalog + lead-gen front door, not a checkout.
-- Passkey-first `/admin` area (see "Authentication" below) so Jeremiah can add/edit listings and photos himself, no code required.
-- `php artisan import:marketplace` - a one-off/rerunnable import from a SQLite staging file produced by a separate Facebook Marketplace scrape, so his existing live listings can seed the catalog.
+* **Live Site:** [flaviopereira.dev/crxfarm](https://flaviopereira.dev/crxfarm)
+* **GitHub Repository:** [github.com/VIRUXE/web-crxfarm](https://github.com/VIRUXE/web-crxfarm)
 
-## Authentication: invite -> PIN -> mandatory passkey
+---
 
-There's no traditional password login. New admin users only ever get created by an existing admin, and go through one fixed onboarding path:
+## Table of Contents
 
-1. **Invite** (`/admin/users/invite`, admin-only) - enter a name + email. This creates a `User` row in `status = invited` (no credentials at all yet) and generates a 48-hour, one-time signed magic link (`URL::temporarySignedRoute`) to `/onboarding/pin/{user}`.
-2. **PIN setup** (the magic link) - the invitee sets a 6-digit PIN (hashed into `pin_hash`, bcrypt via Laravel's `hashed` cast). This flips `status` to `pin_set` and immediately logs them in - not because PIN alone is meant to grant access, but because the next step's API (passkey registration) requires an authenticated session.
-3. **Mandatory passkey enrollment** (`/onboarding/passkey`) - using [`laravel/passkeys`](https://github.com/laravel/passkeys) (the official first-party WebAuthn package). The `EnsureUserIsActive` middleware (aliased `active`, applied to every real `/admin/*` route) redirects any authenticated-but-`status != active` user back here - there is no way to reach the catalog admin area without a passkey existing. On successful registration, `App\Listeners\ActivateUserOnPasskeyRegistered` (listening for the package's `PasskeyRegistered` event) flips `status` to `active`.
-4. **Login, going forward** - passkey is primary (`/admin/login`, WebAuthn ceremony against `laravel/passkeys`' own `/passkeys/login/*` routes). "Use your PIN instead" is a fallback form (`POST /admin/login/pin`, throttled `5` attempts / `15` minutes) - it authenticates against `pin_hash`, but a user who's only reached `pin_set` (never finished enrollment) gets routed straight back to the mandatory enroll screen instead of the admin area, same as case 3. A PIN never grants admin access by itself.
+- [Overview & Architecture](#overview--architecture)
+- [Key Features](#key-features)
+- [Authentication: Passkeys + PIN Fallback](#authentication-passkeys--pin-fallback)
+- [Media Processing Pipeline](#media-processing-pipeline)
+- [System Requirements](#system-requirements)
+- [Step-by-Step Local Setup](#step-by-step-local-setup)
+- [CLI Tools & Commands](#cli-tools--commands)
+- [Testing](#testing)
+- [Production Deployment](#production-deployment)
+  - [Cloudflare R2 Storage](#cloudflare-r2-storage)
+  - [Nginx Subpath Configuration](#nginx-subpath-configuration)
+- [Contributing & License](#contributing--license)
 
-No npm/build step: the WebAuthn ceremony is done with **vanilla JS** (`public/js/passkey-onboarding.js`) using the browser's native `PublicKeyCredential.parseCreationOptionsFromJSON` / `parseRequestOptionsFromJSON` + `credential.toJSON()` (WebAuthn Level 3), instead of the `@laravel/passkeys` npm package.
+---
 
-**Known gaps / judgment calls:**
-- **Mail isn't configured yet** (`MAIL_MAILER=log`). The invite still builds and sends a real `App\Mail\UserInvited` Mailable (so nothing needs touching once real mail is set up), but *right now* it also flashes the link directly on the invite confirmation page, and it lands in `storage/logs/laravel.log` - that's how you actually get the link to send someone today.
-- **WebAuthn ceremonies can't be tested outside a real browser.** Everything up to and including the registration/verification *options* endpoints was verified working (curl/tinker), and the full invite -> PIN -> "blocked from admin until passkey exists" -> "PIN fallback still routes to the enroll screen, not around it" flow was verified end-to-end for a non-active user. The actual `navigator.credentials.create()`/`.get()` browser ceremony has not been exercised by anything but a human with an authenticator - test that by hand once deployed.
-- **A signed magic link is tied to the app's configured `APP_URL`/path.** Generating one against production config (`https://flaviopereira.dev/crxfarm/...`) and hitting it against a differently-pathed local dev server (plain `php artisan serve`, no `/crxfarm` prefix) will 403 on signature validation - that's expected, not a bug; it validates correctly once actually served under the real subpath via nginx (same reason the rest of this app needs the nginx alias + `SCRIPT_NAME` rewrite, see "Deploying" below).
-- **PIN is a fallback for one specific already-enrolled-or-enrolling user, not a second independent factor or an alternate signup path.** A 6-digit PIN has far less entropy than a passkey; the throttle (5/15min) is the main defense, plus the fact that it can never reach the admin area without a passkey existing for that account.
-- The old seeded-admin flow (`ADMIN_SEED_PASSWORD` + plain password login) is gone. `AdminUserSeeder` now seeds directly into `status = pin_set` with a PIN from `ADMIN_SEED_PIN` (default `123456`) - a seeder can't perform a real WebAuthn ceremony, so even the seeded dev admin still has to finish passkey enrollment once through the actual browser flow (log in with the seed PIN via "use your PIN instead", you'll land on `/onboarding/passkey`).
+## Overview & Architecture
 
-## Local development
+CRX Farm is designed with a lightweight, high-performance tech stack prioritizing simplicity and maintainability without frontend build bloat:
 
+* **Backend:** Laravel 13 running on PHP 8.3+ with strict type declarations, native Enums, and constructor promotion.
+* **Frontend:** Server-rendered Laravel Blade + **htmx** for instant search and dynamic filtering without page reloads.
+* **Styling & UI:** **Tailwind CSS v4** with **Blade Lucide Icons** for a responsive, mobile-first design.
+* **Database:** MySQL / MariaDB (production & dev) or SQLite (testing & local dev).
+* **Media & Assets:** Automated image border trimming, watermarking, WebP encoding, OpenGraph generation (via GD/FreeType), and WebM video conversion (via FFmpeg).
+* **Storage:** Dual-mode filesystem: local symlinked disk for development, **Cloudflare R2** (S3-compatible) for production.
+* **Authentication:** Passwordless, email-free WebAuthn / Passkeys (Level 3) powered by `laravel/passkeys` with a 6-digit PIN bootstrap and fallback.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Public Visitors                        │
+│   • Live Search & Chassis / Category Filters (htmx)         │
+│   • Multi-photo gallery, WebM videos, Donor Car Part-Outs   │
+│   • Schema.org JSON-LD + 1200x630 OpenGraph SEO Cards       │
+│   • Direct Messenger Linkout ("Ask about this")             │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────┐
+│                    Laravel 13 Application                   │
+│   • CatalogController (public browsable & sitemap)          │
+│   • Admin/ListingController (CRUD, Image Manager)           │
+│   • Admin/UserController (device passkey management)        │
+│   • TitleNormalizer & DescriptionCleaner Pipelines          │
+│   • ImageTrimmer & VideoConverter Support Services          │
+└──────────────┬──────────────────────────────┬───────────────┘
+               │                              │
+┌──────────────▼─────────────┐ ┌──────────────▼───────────────┐
+│     Database Layer         │ │     Storage / Media Layer    │
+│  • Listings (Parts / Cars) │ │  • Local Storage Disk / R2   │
+│  • Chassis & Pivot Tables  │ │  • Watermarked WebP Photos   │
+│  • Listing Images & Videos │ │  • 1200x630 OG Social JPEGs  │
+│  • Users & Passkeys        │ │  • VP9/Opus WebM Videos      │
+└────────────────────────────┘ └──────────────────────────────┘
+```
+
+---
+
+## Key Features
+
+### 1. Public Inventory Catalog
+- **Chassis Fitment Filtering:** Filter by Honda/Acura chassis codes: CRX, EF, EG, EK, Del Sol, DA Integra, DC2 Integra, Prelude, Accord, CR-V, Element, S2000, Civic Wagon, Fit, etc.
+- **Part Categories & Tags:** Grouped into Engine & Drivetrain, Exterior & Body, Interior, Lighting & Electrical, Suspension & Brakes, Wheels & Tires, Exhaust & Intake, and Other/Misc.
+- **Wheel Bolt Patterns:** Dedicated filter for `4x100`, `4x114.3`, `5x114.3`, and `5x120` patterns.
+- **Dual Listing Types:**
+  - *Individual Parts:* Specific parts with compatible chassis pivot bindings and category tags.
+  - *Donor Cars:* Whole vehicles parted out over time, featuring dynamic "Missing Parts" checklists.
+- **Direct Lead-Gen:** Click-to-message buttons linking directly to Facebook Messenger (`m.me/jeremiah.freeman.116318`) with pre-filled context.
+- **Full SEO Optimization:** Dynamic meta tags, canonical URLs, XML sitemap (`/sitemap.xml`), and Schema.org `Product` / `Vehicle` JSON-LD structured data.
+
+### 2. Admin Control Center (`/admin`)
+- **Searchable Dashboard:** Real-time search across titles, descriptions, chassis, and bolt patterns.
+- **Listing Editor:** Multi-photo and video upload, custom thumbnail chooser, dynamic chassis quick-picks, and autocomplete suggestions.
+- **Visual Image Manager (`/admin/images`):** Grid view of all inventory photos with quick delete, re-sequencing, and filters to identify listings missing media.
+- **User & Device Management (`/admin/users`):** Add operators, view enrolled passkey counts, issue PINs, revoke device access, and manage administrative privileges.
+
+---
+
+## Authentication: Passkeys + PIN Fallback
+
+CRX Farm uses a modern **passwordless, email-free** authentication model. Admins authenticate with hardware-backed passkeys (Face ID, Touch ID, Windows Hello, YubiKey) without remembering passwords or relying on email delivery.
+
+```
+             ┌──────────────────────────────────────────────┐
+             │       Admin Creates User via /admin/users    │
+             │   (Enters username -> Generates 6-digit PIN) │
+             └──────────────────────┬───────────────────────┘
+                                    │
+                                    ▼
+             ┌──────────────────────────────────────────────┐
+             │         User Logs In with PIN at /admin      │
+             │     (Session created with status: pin_set)   │
+             └──────────────────────┬───────────────────────┘
+                                    │
+                                    ▼
+             ┌──────────────────────────────────────────────┐
+             │ Mandatory Passkey Enrollment (/onboarding)   │
+             │   (WebAuthn ceremony via browser credentials)│
+             └──────────────────────┬───────────────────────┘
+                                    │
+                     ┌──────────────┴──────────────┐
+                     ▼                             ▼
+        [First-Time User]                  [Existing User on New Device]
+      Status flips to active             must_enroll_passkey flag cleared
+                     │                             │
+                     └──────────────┬──────────────┘
+                                    ▼
+             ┌──────────────────────────────────────────────┐
+             │           Full Access to /admin/*            │
+             │      (Subsequent logins: 1-click Passkey)    │
+             └──────────────────────────────────────────────┘
+```
+
+### Flow Breakdown:
+1. **Invite / User Creation:** An existing admin creates an operator by `username` in `/admin/users/invite`. The system generates a unique 6-digit PIN displayed once on screen to hand to the user.
+2. **PIN Login:** The operator visits `/admin`, clicks *"Use your PIN instead"*, and enters their 6-digit PIN (rate-limited to 5 attempts per 15 minutes).
+3. **Mandatory Passkey Enrollment:** Signing in with a PIN routes the user directly to `/onboarding/passkey`. The `EnsureUserIsActive` middleware blocks access to `/admin/*` until a passkey is registered on the device.
+4. **Activation:** Completing the WebAuthn ceremony registers the credential and flips the user status to `active`.
+5. **Ongoing Authentication:** Daily logins use the primary **Passkey Login** button (1-click WebAuthn ceremony).
+6. **Multi-Device & Recovery:**
+   - *Adding a new device:* Sign in with the 6-digit PIN on the new device; the system prompts to register a passkey for that device.
+   - *Lost / Compromised device:* An admin clicks *"Reset access"* in `/admin/users`, instantly revoking all active passkeys and resetting the account to `pin_set`.
+
+---
+
+## Media Processing Pipeline
+
+CRX Farm automatically processes all uploaded and scraped inventory media:
+
+- **Border Trimming (`ImageTrimmer::trim`):** Scans image edges for letterboxing/black bars (common in Facebook mobile screenshots) and crops them cleanly.
+- **Downscaling:** Resizes large camera photos to a max dimension of 1600px, keeping galleries lightweight.
+- **Staggered Watermarking:** Applies a translucent, tiled `CRXFARM` watermark at a 30° angle across the canvas with drop shadows. This prevents unauthorized scraper reuse on Marketplace scams while keeping parts visible.
+- **WebP Conversion:** Converts all stored images to optimized WebP at quality 82–90.
+- **Social Preview Cards (`OgImageGenerator`):** Automatically generates a 1200x630 (1.91:1) cover-cropped JPEG (`og_path`) for each listing photo, ensuring crisp display on Facebook, Discord, X, and iMessage previews.
+- **Video Conversion (`VideoConverter`):** If FFmpeg is installed, incoming videos (MP4, MOV, AVI) are converted to WebM (VP9 video + Opus audio) with the watermark burned in, and an initial WebP poster frame is extracted.
+
+---
+
+## System Requirements
+
+Before setting up CRX Farm, ensure your environment has:
+
+| Requirement | Minimum Version | Notes |
+| :--- | :--- | :--- |
+| **PHP** | `^8.3` | Required extensions: `pdo_mysql` (or `pdo_sqlite`), `gd`, `bcmath`, `mbstring`, `openssl`, `curl`, `xml`, `zip` |
+| **Composer** | `2.x` | PHP package manager |
+| **Node.js & npm** | `Node 18+` / `npm 9+` | For Tailwind CSS v4 & asset bundling via Vite |
+| **Database** | MySQL 8.0+ / MariaDB 10.5+ | SQLite is also supported for testing and local dev |
+| **FFmpeg** *(optional)* | `4.x+` | Required only if processing and converting video uploads |
+| **TrueType Fonts** *(optional)* | FreeType / Liberation / DejaVu | Used for rendering text watermarks on images |
+
+---
+
+## Step-by-Step Local Setup
+
+Follow these steps to run CRX Farm on any local development machine:
+
+### 1. Clone the Repository
 ```bash
+git clone https://github.com/VIRUXE/web-crxfarm.git crxfarm
+cd crxfarm
+```
+
+### 2. Install Dependencies
+```bash
+# Install PHP dependencies
 composer install
+
+# Install Node.js packages
+npm install
+```
+
+### 3. Configure Environment
+```bash
+# Copy example environment file
 cp .env.example .env
-# set DB_* to a local MySQL/MariaDB database, and (optionally) ADMIN_SEED_PIN
+```
+
+Open `.env` in your editor and configure your environment:
+```ini
+APP_NAME="CRX Farm"
+APP_ENV=local
+APP_KEY=
+APP_DEBUG=true
+APP_URL=http://127.0.0.1:8000
+ASSET_URL=http://127.0.0.1:8000
+
+# Database Configuration (MySQL / MariaDB):
+DB_CONNECTION=mariadb
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=crxfarm
+DB_USERNAME=your_db_user
+DB_PASSWORD=your_db_password
+
+# Or for quick SQLite setup:
+# DB_CONNECTION=sqlite
+# DB_DATABASE=/absolute/path/to/database/database.sqlite
+
+# Local Dev Admin Seed PIN:
+ADMIN_SEED_PIN=123456
+
+# Keep filesystem driver as local for dev:
+FILESYSTEM_DISK=local
+```
+
+### 4. Initialize the Application
+```bash
+# Generate application encryption key
 php artisan key:generate
+
+# Run database migrations
 php artisan migrate
+
+# Create the public storage symlink for uploaded media
 php artisan storage:link
-php artisan db:seed          # seeds the admin user (status=pin_set, PIN from ADMIN_SEED_PIN, default 123456) + a few placeholder listings
-php artisan import:marketplace   # optional: pulls in real scraped data if present
+
+# Seed initial admin user and sample catalog listings
+php artisan db:seed
+```
+
+### 5. Build Frontend Assets
+```bash
+# Build production assets
+npm run build
+
+# Or run the Vite dev server with Hot Module Reloading (HMR):
+npm run dev
+```
+
+### 6. Start the Development Server
+```bash
 php artisan serve
 ```
 
-Visit `http://127.0.0.1:8000`, admin at `/admin/login` - click "Use your PIN instead", sign in with `jeremiah@crxfarm.local` / the seed PIN, then finish passkey enrollment on the page it lands you on (`/onboarding/passkey`). `php artisan serve` on `localhost`/`127.0.0.1` is a browser-trusted secure context, so WebAuthn works without HTTPS locally.
+### 7. Access the Catalog & Admin
+1. Open your browser and navigate to `http://127.0.0.1:8000` to view the public catalog.
+2. Go to `http://127.0.0.1:8000/admin` to access the admin area.
+3. Click **"Use your PIN instead"**.
+4. Enter the seeded PIN: `123456`.
+5. You will land on the **Passkey Enrollment** screen (`/onboarding/passkey`). Click **"Register Passkey"** and complete your browser's WebAuthn prompt (Touch ID, Windows Hello, or security key).
+6. Your account is now `active`, and you will have full access to manage listings and users!
 
-## Deploying to flaviopereira.dev/crxfarm
+---
 
-This app is served from a **subpath**, not domain root, following the same pattern as the other Laravel app already on this box (`/garagem504`). Steps:
+## CLI Tools & Commands
 
-1. Copy/clone this repo to `/var/www/crxfarm`, `composer install --no-dev -o`, set up `.env` for production (real `DB_PASSWORD`, `APP_KEY` via `php artisan key:generate`, `ADMIN_SEED_PASSWORD`), run `php artisan migrate --force`, `php artisan storage:link`, `php artisan db:seed --force` once, then `php artisan import:marketplace` to pull in real inventory.
-2. Add an nginx location block to `/etc/nginx/sites-available/flaviopereira.dev` mirroring the `/garagem504` block:
+CRX Farm includes specialized Artisan console commands for inventory management and maintenance:
 
-    ```nginx
-    location = /crxfarm { return 301 /crxfarm/; }
-    location /crxfarm/ {
-        alias /var/www/crxfarm/public/;
-        index index.php;
-        try_files $uri $uri/ @crxfarm;
-        location ~ ^/crxfarm/(.+\.php)$ {
-            include fastcgi_params;
-            fastcgi_pass unix:/run/php/php8.5-fpm.sock;
-            fastcgi_param SCRIPT_FILENAME /var/www/crxfarm/public/$1;
-            fastcgi_param SCRIPT_NAME /crxfarm/$1;
-            fastcgi_param DOCUMENT_ROOT /var/www/crxfarm/public;
-        }
-    }
-    location @crxfarm {
-        include fastcgi_params;
-        fastcgi_pass unix:/run/php/php8.5-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME /var/www/crxfarm/public/index.php;
-        fastcgi_param SCRIPT_NAME /crxfarm/index.php;
-        fastcgi_param DOCUMENT_ROOT /var/www/crxfarm/public;
-        fastcgi_param REQUEST_URI $request_uri;
-    }
-    ```
-
-3. `nginx -t` to validate, back up the existing config first, then `systemctl reload nginx`.
-4. Make sure `storage/` and `bootstrap/cache/` are writable by `www-data`, and `public/storage` is the symlink created by `artisan storage:link`.
-
-### Listing photos & videos (Cloudflare R2)
-
-Production serves listing photos/videos from Cloudflare R2 instead of local disk - the `public` filesystem disk (`config/filesystems.php`) switches from `local` to `s3` when `FILESYSTEM_PUBLIC_DRIVER=s3` is set, pointed at R2 via its S3-compatible API. The disk name didn't change, so every `Storage::disk('public')` call site in the app is unaffected either way.
-
-Set these in production `.env` (leave `FILESYSTEM_PUBLIC_DRIVER` unset in local dev to keep using local disk + `artisan storage:link`):
-
+### 1. Facebook Marketplace Scrape Importer
+Imports raw scraped listings from a SQLite database or JSONL file into the catalog, automatically classifying vehicles vs parts, assigning categories and chassis, and processing images:
+```bash
+php artisan import:marketplace --path=/path/to/listings.jsonl
+# Or from a scrape SQLite file with a custom images folder:
+php artisan import:marketplace --path=/path/to/scrape.sqlite --images=/path/to/images --honda-only
 ```
+- `--path`: Path to `listings.jsonl` or SQLite file.
+- `--images`: Directory containing raw image files (defaults to `crxfarm_images` next to the file).
+- `--honda-only`: Filters out lawnmowers, boats, jet skis, and non-Honda listings.
+- `--force`: Re-extracts and overwrites photos even if already imported.
+
+### 2. Title Normalizer
+Standardizes listing titles into Title Case while enforcing correct capitalization for engine codes (B16A, D16Z6, K20A, H22), chassis codes (EF, EG, EK, DC2), brands (Hasport, Skunk2, Mugen), and acronyms (OEM, JDM, VTEC, ECU, LSD):
+```bash
+# Dry run to inspect changes without saving:
+php artisan listings:normalize-titles --dry-run
+
+# Apply normalization across all listings:
+php artisan listings:normalize-titles
+```
+
+### 3. Description Cleaner
+Removes Facebook Marketplace artifacts (`[hidden information]`), "PM me for price" boilerplate, and seller signature noise while preserving technical specs:
+```bash
+# Dry run:
+php artisan listings:clean-descriptions --dry-run
+
+# Apply description cleaning:
+php artisan listings:clean-descriptions
+```
+
+### 4. Backfill OpenGraph Images
+Generates 1200x630 social card variants for any existing listing photos:
+```bash
+php artisan app:backfill-og-images
+```
+
+---
+
+## Testing
+
+CRX Farm includes a comprehensive test suite covering catalog queries, SEO metadata generation, image/video processing, title normalization, and passkey authentication flows.
+
+Tests run against an in-memory SQLite database (`.env.testing` / `phpunit.xml`):
+
+```bash
+# Run all tests via Artisan
+php artisan test
+
+# Or run PHPUnit directly
+vendor/bin/phpunit
+
+# Run a specific test class
+php artisan test tests/Feature/CatalogSeoTest.php
+```
+
+---
+
+## Production Deployment
+
+### Cloudflare R2 Storage
+
+Production uses Cloudflare R2 (S3-compatible object storage) for zero-egress fee media hosting. The `public` disk seamlessly switches to R2 when configured:
+
+Set the following in your production `.env`:
+```ini
 FILESYSTEM_PUBLIC_DRIVER=s3
-FILESYSTEM_PUBLIC_URL=https://pub-24013a09b0c344bda771e681dea90f9e.r2.dev
-R2_ACCESS_KEY_ID=...
-R2_SECRET_ACCESS_KEY=...
+FILESYSTEM_PUBLIC_URL=https://pub-<your-r2-id>.r2.dev
+R2_ACCESS_KEY_ID=your_r2_access_key
+R2_SECRET_ACCESS_KEY=your_r2_secret_key
 R2_REGION=auto
 R2_BUCKET=crxfarm-media
-R2_ENDPOINT=https://<cloudflare-account-id>.us.r2.cloudflarestorage.com
+R2_ENDPOINT=https://<cloudflare-account-id>.r2.cloudflarestorage.com
 R2_USE_PATH_STYLE_ENDPOINT=true
 ```
 
-The `crxfarm-media` R2 bucket is created under the `us` jurisdiction (hard US data-residency guarantee, not just a location hint) since this catalog is US-facing. Its R2 API token is scoped to just this bucket (Object Read & Write) - not an account-wide token.
+### Nginx Subpath Configuration
 
-## Notes / judgment calls
+If deploying the application under a subpath (e.g. `https://yourdomain.com/crxfarm`), use an Nginx alias block with FastCGI parameter rewrites:
 
-- Admin auth is Laravel's normal session auth with a single seeded admin user (`jeremiah@crxfarm.local`) rather than a full multi-user system - deliberately minimal for a one-operator shop.
-- Pricing is free-text (`"$160"`, `"$100-150"`, or blank = "ask") rather than a strict numeric column, since Jeremiah doesn't have exact prices for everything and often quotes ranges.
-- Donor-car listings use a `missing_parts` free-text field instead of a full parts-per-car breakdown table - matches how he actually inventories (state what's gone, not what's left).
+```nginx
+# Redirect bare subpath to trailing slash
+location = /crxfarm {
+    return 301 /crxfarm/;
+}
+
+# Subpath assets & application handler
+location /crxfarm/ {
+    alias /var/www/crxfarm/public/;
+    index index.php;
+    try_files $uri $uri/ @crxfarm;
+
+    location ~ ^/crxfarm/(.+\.php)$ {
+        include fastcgi_params;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME /var/www/crxfarm/public/$1;
+        fastcgi_param SCRIPT_NAME /crxfarm/$1;
+        fastcgi_param DOCUMENT_ROOT /var/www/crxfarm/public;
+    }
+}
+
+location @crxfarm {
+    include fastcgi_params;
+    fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    fastcgi_param SCRIPT_FILENAME /var/www/crxfarm/public/index.php;
+    fastcgi_param SCRIPT_NAME /crxfarm/index.php;
+    fastcgi_param DOCUMENT_ROOT /var/www/crxfarm/public;
+    fastcgi_param REQUEST_URI $request_uri;
+}
+```
+
+### Production Optimizations
+```bash
+# Optimize configuration, routes, and views
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+
+# Build optimized frontend assets
+npm run build
+```
+
+---
+
+## Contributing & License
+
+Contributions are welcome! Please open an issue or submit a pull request on GitHub.
+
+This project is open-source software licensed under the **[MIT License](LICENSE)**.
